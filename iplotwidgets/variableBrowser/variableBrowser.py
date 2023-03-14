@@ -1,10 +1,11 @@
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox, QHBoxLayout, QVBoxLayout
 from PySide6.QtCore import Qt, Signal
-from iplotlib.interface.iplotSignalAdapter import AccessHelper
-from iplotwidgets.variableBrowser.variableTree import VariableTree
-from iplotwidgets.variableBrowser.variableTable import VariableTable
-from iplotwidgets.variableBrowser.tools.converters import parse
+from iplotDataAccess.appDataAccess import AppDataAccess
+from iplotwidgets.variableTree import VariableTree
+from iplotwidgets.variableTable import VariableTable
+from mint.tools.converters import parse
+
 
 class VariableBrowser(QWidget):
     cmd_finish = Signal(object)
@@ -42,7 +43,7 @@ class VariableBrowser(QWidget):
         self.type_search.addItems(['contains', 'startsWith', 'endsWith'])
         # self.type_search.currentTextChanged.connect(self.update_display)
 
-        self.data_sources = AccessHelper.da.get_connected_data_sources()
+        self.data_sources = AppDataAccess.da.get_connected_data_sources()
         self.sources_combo = QComboBox()
         self.sources_combo.addItems(self.data_sources)
         self.sources_combo.currentTextChanged.connect(self.change_model)
@@ -100,7 +101,7 @@ class VariableBrowser(QWidget):
         else:
             pattern = ''
         data_source_name = self.get_current_source()
-        found = AccessHelper.da.get_var_list(data_source_name=data_source_name, pattern=pattern)
+        found = AppDataAccess.da.get_var_list(data_source_name=data_source_name, pattern=pattern)
         if found:
             new_dict = parse(found)
             self.tree.models['SEARCH'].load(new_dict)

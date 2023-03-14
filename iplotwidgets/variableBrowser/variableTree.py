@@ -1,9 +1,9 @@
 from PySide6.QtGui import QCursor
 from PySide6.QtCore import QFileInfo
 from PySide6.QtWidgets import QTreeView, QToolTip, QAbstractItemView
-from iplotlib.interface.iplotSignalAdapter import AccessHelper
-from iplotwidgets.variableBrowser.models.mtJsonModel import JsonModel, TreeItem
-from iplotwidgets.variableBrowser.tools.converters import parse_groups_to_dict, parse_vars_to_dict
+from iplotDataAccess.appDataAccess import AppDataAccess
+from mint.models.mtJsonModel import JsonModel, TreeItem
+from mint.tools.converters import parse_groups_to_dict, parse_vars_to_dict
 from pathlib import Path
 
 DEFAULT_SOURCE = 'codacuda'
@@ -35,7 +35,7 @@ class VariableTree(QTreeView):
         if self.model().name != 'SEARCH':
             path = index.internalPointer().path
             pattern = f'{path}:.*'
-            data = AccessHelper.da.get_var_list(data_source_name=data_source_name, pattern=pattern)
+            data = AppDataAccess.da.get_var_list(data_source_name=data_source_name, pattern=pattern)
             if data:
                 data_parsed = parse_vars_to_dict(data, path)
                 self.model().add_children(parent=index.internalPointer(), document=data_parsed)
@@ -48,7 +48,7 @@ class VariableTree(QTreeView):
         for child in index.children:
             if child.has_child() or child.consulted:
                 continue
-            data = AccessHelper.da.get_var_fields(data_source_name=data_source_name, variable=child.key)
+            data = AppDataAccess.da.get_var_fields(data_source_name=data_source_name, variable=child.key)
 
             if data:
                 if set(data.keys()) == {'status_id', 'val', 'secs', 'severity_id', 'nanosecs'}:
@@ -78,7 +78,7 @@ class VariableTree(QTreeView):
         if data_source_name not in self.models:
 
             self.models[data_source_name] = JsonModel(name=data_source_name)
-            lines = AccessHelper.da.get_cbs_list(data_source_name=data_source_name)
+            lines = AppDataAccess.da.get_cbs_list(data_source_name=data_source_name)
             if lines:
                 document = parse_groups_to_dict(lines)
                 self.models[data_source_name].load(document)
