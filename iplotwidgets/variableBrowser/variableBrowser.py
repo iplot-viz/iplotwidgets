@@ -2,9 +2,9 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox, QHBoxLayout, QVBoxLayout
 from PySide6.QtCore import Qt, Signal
 from iplotDataAccess.appDataAccess import AppDataAccess
-from iplotwidgets.variableTree import VariableTree
-from iplotwidgets.variableTable import VariableTable
-from mint.tools.converters import parse
+from iplotwidgets.variableBrowser.variableTree import VariableTree
+from iplotwidgets.variableBrowser.variableTable import VariableTable
+from iplotwidgets.variableBrowser.tools.converters import parse
 
 
 class VariableBrowser(QWidget):
