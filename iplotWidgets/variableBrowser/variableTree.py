@@ -2,8 +2,8 @@ from PySide6.QtGui import QCursor
 from PySide6.QtCore import QFileInfo
 from PySide6.QtWidgets import QTreeView, QToolTip, QAbstractItemView
 from iplotDataAccess.appDataAccess import AppDataAccess
-from iplotwidgets.variableBrowser.models.mtJsonModel import JsonModel, TreeItem
-from iplotwidgets.variableBrowser.tools.converters import parse_groups_to_dict, parse_vars_to_dict
+from iplotWidgets.variableBrowser.models.mtJsonModel import JsonModel, TreeItem
+from iplotWidgets.variableBrowser.tools.converters import parse_groups_to_dict, parse_vars_to_dict
 from pathlib import Path
 
 DEFAULT_SOURCE = 'codacuda'

@@ -5,7 +5,7 @@
 # Set up environment
 source ci-build/st00-header.sh $* || exit 1
 
-# Create a virtualized environment for installing iplotwidgets
+# Create a virtualized environment for installing iplotWidgets
 if [ -d "${PREFIX_DIR}" ];
 then
     try rm -r ${PREFIX_DIR}
@@ -17,7 +17,7 @@ try mkdir ${PREFIX_DIR}
 try python3 -m pip --disable-pip-version-check install --no-deps . --prefix=${PREFIX_DIR}
 
 export PYTHONPATH=${PYTHONPATH}:$(get_abs_filename "./${PREFIX_DIR}")
-try python3 -c "import iplotwidgets"
+try python3 -c "import iplotWidgets"
 
 # Stash
 tar -cvzf ${PREFIX_DIR}.tar.gz ./${PREFIX_DIR}

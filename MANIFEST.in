@@ -1,0 +1,4 @@
+graft iplotWidgets
+recursive-exclude * *.py[co]
+include versioneer.py
+include iplotWidgets/_version.py

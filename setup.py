@@ -7,7 +7,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="iplotwidgets",
+    name="iplotWidgets",
     version=versioneer.get_version(),
     cmdclass=versioneer.get_cmdclass(),
     # setup_requires=["setuptools-git-versioning"],
@@ -32,5 +32,5 @@ setuptools.setup(
     keywords="ITER iplot widgets",
     setup_requires=["setuptools"],
     python_requires=">=3.6",
-    packages=["iplotwidgets"],
+    packages=["iplotWidgets"],
 )
