@@ -10,7 +10,7 @@ setuptools.setup(
     name="iplotWidgets",
     version=versioneer.get_version(),
     cmdclass=versioneer.get_cmdclass(),
-    # setup_requires=["setuptools-git-versioning"],
+    setup_requires=["setuptools-git-versioning"],
     # version_config={
     #     "version_callback": __version__,
     #     "template": "{tag}",
@@ -30,7 +30,7 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     keywords="ITER iplot widgets",
-    setup_requires=["setuptools"],
+    package_dir={"": "."},
+    packages=setuptools.find_namespace_packages(where="."),
     python_requires=">=3.6",
-    packages=["iplotWidgets"],
 )
