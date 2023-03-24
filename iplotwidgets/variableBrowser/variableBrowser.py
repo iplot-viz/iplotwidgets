@@ -93,7 +93,7 @@ class VariableBrowser(QWidget):
         type_search = self.type_search.currentText()
 
         if type_search == 'startsWith':
-            pattern = f'.*{text}'
+            pattern = f'{text}.*'
         elif type_search == 'contains':
             pattern = f'.*{text}.*'
         elif type_search == 'endsWith':
