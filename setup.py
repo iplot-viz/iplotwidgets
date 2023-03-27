@@ -29,6 +29,7 @@ setuptools.setup(
         # "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
+    package_dir={"": "."},
     keywords="ITER iplot widgets",
     install_requires=[ "iplotLogging",
         "iplotlib",
