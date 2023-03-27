@@ -10,7 +10,7 @@ setuptools.setup(
     name="iplotWidgets",
     version=versioneer.get_version(),
     cmdclass=versioneer.get_cmdclass(),
-    # setup_requires=["setuptools-git-versioning"],
+    setup_requires=["setuptools-git-versioning"],
     # version_config={
     #     "version_callback": __version__,
     #     "template": "{tag}",

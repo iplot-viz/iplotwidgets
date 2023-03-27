@@ -27,15 +27,5 @@ then
 fi
 echo "Toolchain: $toolchain"
 
-# Default to production config. (Will use idv components from system instead of sources.)
-if [[ "$2" == "prod" || -z $2 ]];
-then
-    config=prod
-elif [[ "$2" == "dev" ]];
-then
-    config=dev
-fi
-echo "Configuration: $config"
-
 # Testing/Coverage requirements
 try module load coverage/5.5-GCCcore-10.2.0 
