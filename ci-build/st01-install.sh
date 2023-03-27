@@ -17,7 +17,7 @@ try mkdir ${PREFIX_DIR}
 try python3 -m pip --disable-pip-version-check install --no-deps . --prefix=${PREFIX_DIR}
 
 export PYTHONPATH=${PYTHONPATH}:$(get_abs_filename "./${PREFIX_DIR}")
-try python3 -c "import iplotwidgets"
+try python3 -c "import iplotWidgets"
 
 # Stash
 tar -cvzf ${PREFIX_DIR}.tar.gz ./${PREFIX_DIR}

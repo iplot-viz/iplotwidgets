@@ -10,7 +10,7 @@ tar -xvzf ${PREFIX_DIR}.tar.gz ./${PREFIX_DIR}
 
 export PYTHONPATH=${PYTHONPATH}:$(get_abs_filename "./${PREFIX_DIR}")
 # run tests
-coverage run --source=iplotwidgets -m pytest iplotwidgets --full-trace
+coverage run --source=iplotWidgets -m pytest iplotWidgets --full-trace
 
 # report
 coverage report -i
