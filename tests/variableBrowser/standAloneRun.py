@@ -3,7 +3,7 @@
 
 import sys
 from PySide6.QtWidgets import QApplication
-from iplotwidgets.variableBrowser.variableBrowser import VariableBrowser
+from iplotWidgets.variableBrowser.variableBrowser import VariableBrowser
 from iplotDataAccess.appDataAccess import AppDataAccess
 import iplotLogging.setupLogger as ls
 

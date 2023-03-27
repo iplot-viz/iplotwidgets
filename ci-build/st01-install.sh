@@ -5,7 +5,7 @@
 # Set up environment
 source ci-build/st00-header.sh $* || exit 1
 
-# Create a virtualized environment for installing iplotwidgets
+# Create a virtualized environment for installing iplotWidgets
 if [ -d "${PREFIX_DIR}" ];
 then
     try rm -r ${PREFIX_DIR}

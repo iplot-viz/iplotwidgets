@@ -80,9 +80,9 @@ class JsonModel(QAbstractItemModel):
             return QSize(1000, 20)
         elif role == Qt.DecorationRole:
             if item.value_type == "folder":
-                return QtGui.QIcon(QtGui.QPixmap("iplotwidgets/iplotwidgets/variableBrowser/icons/folder.svg"))
+                return QtGui.QIcon(QtGui.QPixmap("iplotWidgets/iplotWidgets/variableBrowser/icons/folder.svg"))
             elif item.value_type == "variable":
-                return QtGui.QIcon(QtGui.QPixmap("iplotwidgets/iplotwidgets/variableBrowser/icons/variable.svg"))
+                return QtGui.QIcon(QtGui.QPixmap("iplotWidgets/iplotWidgets/variableBrowser/icons/variable.svg"))
 
     def index(self, row: int, column: int, parent=QModelIndex()) -> QModelIndex:
         """Override from QAbstractItemModel
