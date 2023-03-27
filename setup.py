@@ -30,10 +30,11 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     package_dir={"": "."},
-    keywords="ITER iplot widgets",
-    install_requires=[ "iplotLogging",
+    packages=setuptools.find_namespace_packages(where="."),
+    python_requires=">=3.8",
+    install_requires=[ 
+		"iplotLogging",
         "iplotlib",
-        "iplotDataAccess"],
-    python_requires=">=3.6",
-    packages=["iplotWidgets"],
+        "iplotDataAccess",
+    ],
 )
