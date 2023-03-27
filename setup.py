@@ -32,7 +32,7 @@ setuptools.setup(
     keywords="ITER iplot widgets",
     setup_requires=[ "iplotLogging",
         "iplotlib >= 0.5.0",
-        "iplotDataAccess >= 0.4.0"],
+        "iplotDataAccess"],
     python_requires=">=3.6",
     packages=["iplotWidgets"],
 )
