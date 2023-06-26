@@ -39,6 +39,8 @@ class VariableBrowser(QWidget):
 
         self.search_btn = QPushButton('Search')
         self.search_btn.clicked.connect(self.search)
+        self.refresh_btn = QPushButton('Refresh')
+        self.refresh_btn.clicked.connect(self.refresh)
         self.type_search = QComboBox()
         self.type_search.addItems(['contains', 'startsWith', 'endsWith'])
         # self.type_search.currentTextChanged.connect(self.update_display)
@@ -50,6 +52,7 @@ class VariableBrowser(QWidget):
 
         top_h_layout = QHBoxLayout()
         top_h_layout.addWidget(self.sources_combo)
+        top_h_layout.addWidget(self.refresh_btn)
         top_h_layout.addWidget(self.searchbar)
         top_h_layout.addWidget(self.type_search)
         top_h_layout.addWidget(self.search_btn)
@@ -131,3 +134,15 @@ class VariableBrowser(QWidget):
         df = self.tableView.get_variables_df()
         self.cmd_finish.emit(df)
         self.tableView.clear_table()
+
+    def refresh(self):
+        data_source_name = self.get_current_source()
+        lines = AppDataAccess.da.get_cbs_list(data_source_name=data_source_name)
+        if lines:
+            refresh_dict = parse(lines)
+            self.tree.models[data_source_name].load(refresh_dict)
+        else:
+            refresh_dict_fail = parse({'Error when trying to refresh data source'})
+            self.tree.models[data_source_name].load(refresh_dict_fail)
+
+        self.tree.check_folder(self.tree.models[data_source_name]._root_item, data_source_name)
