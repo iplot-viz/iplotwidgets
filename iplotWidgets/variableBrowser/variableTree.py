@@ -1,6 +1,6 @@
 from PySide6.QtGui import QCursor
-from PySide6.QtCore import QFileInfo
-from PySide6.QtWidgets import QTreeView, QToolTip, QAbstractItemView
+from PySide6.QtCore import QFileInfo, Qt
+from PySide6.QtWidgets import QTreeView, QToolTip, QAbstractItemView, QMenu
 from iplotDataAccess.appDataAccess import AppDataAccess
 from iplotWidgets.variableBrowser.models.mtJsonModel import JsonModel, TreeItem
 from iplotWidgets.variableBrowser.tools.converters import parse_groups_to_dict, parse_vars_to_dict
@@ -11,9 +11,11 @@ DEFAULT_SOURCE = 'codacuda'
 
 class VariableTree(QTreeView):
     def __init__(self):
-        QTreeView.__init__(self)
+        super().__init__()
         self.models = {'SEARCH': JsonModel(name='SEARCH')}
         self.setSelectionMode(self.selectionMode().ExtendedSelection)
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.openMenu)
         self.setHeaderHidden(True)
         self.setColumnWidth(0, 205)
         self.setMouseTracking(True)
@@ -25,8 +27,17 @@ class VariableTree(QTreeView):
         self.setDragDropMode(QAbstractItemView.InternalMove)
         # AccessHelper.da.getData(dataSName="codacuda", varname='IC-ICH-PCF1:9401_0', tsS=0, tsE=1676885937000000000,nbp=100)
         self.expanded.connect(self.expand)
-        #self.load_model(DEFAULT_SOURCE)
+        self.load_model(DEFAULT_SOURCE)
         self.dragged_item = None
+
+    def openMenu(self, position):
+        index = self.indexAt(position).internalPointer()
+        if index.value_type == "nested_variable":
+            temp = index.children
+            index._children = index.nested_children
+            index.nested_children = temp
+            self.model().layoutChanged.emit()
+            del temp
 
     def expand(self, index):
         data_source_name = self.parent().get_current_source()
@@ -43,6 +54,24 @@ class VariableTree(QTreeView):
         self.check_folder(index.internalPointer(), data_source_name)
         index.internalPointer().consulted = True
         self.model().layoutChanged.emit()
+
+    @staticmethod
+    def group_common_parts(data):
+        common_parts = {}
+
+        for key, value in data.items():
+            sub_data = common_parts
+            parts = key.split('/')
+
+            for parte in parts[:-1]:
+                if parte not in sub_data:
+                    sub_data[parte] = {}
+
+                sub_data = sub_data[parte]
+
+            sub_data[parts[-1]] = value
+
+        return common_parts
 
     def check_folder(self, index, data_source_name):
         for child in index.children:
@@ -62,7 +91,9 @@ class VariableTree(QTreeView):
                     child.description = data['value']['description']
                     child.dimension = data['value']['dimensionality']
                 else:
-                    child.value_type = 'folder'
+                    child.value_type = 'nested_variable'
+                    TreeItem.load_nested_child(self.group_common_parts(data), child, consulted=True)
+
                     for key, val in data.items():
                         child.append_child(TreeItem(parent=child,
                                                     key=f'{child.key}/{key}',
