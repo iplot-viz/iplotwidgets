@@ -2,6 +2,8 @@ from typing import Any, List, Dict, Union
 from PySide6 import QtGui
 from PySide6.QtCore import QAbstractItemModel, QModelIndex, QObject, Qt, QSize, QPersistentModelIndex
 
+import re
+
 
 class JsonModel(QAbstractItemModel):
     """ An editable model of Json data """
@@ -79,7 +81,7 @@ class JsonModel(QAbstractItemModel):
             "giving size hint"
             return QSize(1000, 20)
         elif role == Qt.DecorationRole:
-            if item.value_type == "folder":
+            if item.value_type == "folder" or item.value_type == "nested_variable":
                 return QtGui.QIcon(QtGui.QPixmap("iplotWidgets/iplotWidgets/variableBrowser/icons/folder.svg"))
             elif item.value_type == "variable":
                 return QtGui.QIcon(QtGui.QPixmap("iplotWidgets/iplotWidgets/variableBrowser/icons/variable.svg"))
@@ -185,10 +187,11 @@ class TreeItem:
         self._data_type = data_type
         self._value_type = value_type
         self._children = []
+        self.nested_children = []
         self.SizeHintRole = 100
 
     def is_folder(self):
-        return self.value_type == "folder"
+        return self.value_type == "folder" or self.value_type == "nested_variable"
 
     def append_child(self, item: "TreeItem"):
         """Add item as a child"""
@@ -326,7 +329,7 @@ class TreeItem:
 
         if not isinstance(value, dict):
             return root_item
-        items = sorted(value.items())
+        items = sorted(value.items(), key=lambda x: (not x[0].isdigit(), x[0]))
 
         for key, val in items:
             path.append(key)
@@ -339,6 +342,53 @@ class TreeItem:
                 child.value_type = "folder"
             child.path = '-'.join(path).replace('?V', '')
             root_item.append_child(child)
+            path.pop()
+
+        return root_item
+
+    @staticmethod
+    def extract_parts(element):
+        partes = re.findall(r'(\d+|\D+)', element)
+        return [int(parte) if parte.isdigit() else parte for parte in partes]
+
+    @classmethod
+    def load_nested_child(cls, value: Union[List, Dict], parent: "TreeItem" = None, path: object = None,
+                          consulted: object = False) -> "TreeItem":
+        if path is None:
+            path = []
+        if consulted:
+            root_item = parent
+            root_item._consulted = consulted
+        else:
+            root_item = TreeItem(parent)
+            root_item.path = f"{parent.path}/{path[-1]}"
+
+        if not isinstance(value, dict):
+            return root_item
+
+        sorted_key = sorted(value.keys(), key=cls.extract_parts)
+        sorted_value = {key: value[key] for key in sorted_key}
+        for key, val in sorted_value.items():
+            path.append(key)
+
+            if val.keys() == {'type', 'dimensionality', 'units', 'description'}:
+                child = TreeItem(root_item)
+                child.data_type = val['type']
+                child.dimensionality = val['dimensionality']
+                child.units = val['units']
+                child.description = val['description']
+                child.key = f"{root_item.path}/{path[-1]}"
+                child.path = key
+                child.value_type = "variable"
+                child.consulted = True
+            else:
+                child = cls.load_nested_child(val, root_item, path)
+                child.key = key
+                child.value_type = "folder"
+            if consulted:
+                root_item.nested_children.append(child)
+            else:
+                root_item.append_child(child)
             path.pop()
 
         return root_item
