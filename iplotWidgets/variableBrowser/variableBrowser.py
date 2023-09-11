@@ -1,6 +1,6 @@
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox, QHBoxLayout, QVBoxLayout
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox, QHBoxLayout, QVBoxLayout, QProgressBar
+from PySide6.QtCore import Qt, Signal, QCoreApplication
 from iplotDataAccess.appDataAccess import AppDataAccess
 from iplotWidgets.variableBrowser.variableTree import VariableTree
 from iplotWidgets.variableBrowser.variableTable import VariableTable
@@ -45,6 +45,13 @@ class VariableBrowser(QWidget):
         self.type_search.addItems(['contains', 'startsWith', 'endsWith'])
         # self.type_search.currentTextChanged.connect(self.update_display)
 
+        # Progress bar
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setParent(self)
+        self.progress_bar.setMinimum(0)
+        self.progress_bar.setMaximum(100)
+        self.progress_bar.hide()
+
         self.data_sources = AppDataAccess.da.get_connected_data_sources()
         self.sources_combo = QComboBox()
         self.sources_combo.addItems(self.data_sources)
@@ -56,6 +63,9 @@ class VariableBrowser(QWidget):
         top_h_layout.addWidget(self.searchbar)
         top_h_layout.addWidget(self.type_search)
         top_h_layout.addWidget(self.search_btn)
+        top_v_layout = QVBoxLayout()
+        top_v_layout.addLayout(top_h_layout)
+        top_v_layout.addWidget(self.progress_bar)
 
         bot_v_layout = QVBoxLayout()
         bot_h_layout = QHBoxLayout()
@@ -68,7 +78,7 @@ class VariableBrowser(QWidget):
         mid_h_layout.addWidget(self.tree)
         mid_h_layout.addWidget(self.tableView)
         main_v_layout = QVBoxLayout()
-        main_v_layout.addLayout(top_h_layout)
+        main_v_layout.addLayout(top_v_layout)
         self.add_layout = main_v_layout.addLayout(mid_h_layout)
         main_v_layout.addLayout(bot_v_layout)
         self.setLayout(main_v_layout)
@@ -88,6 +98,10 @@ class VariableBrowser(QWidget):
             self.tree.set_model(self.get_current_source())
 
     def search(self):
+        self.search_btn.setEnabled(False)  # Disable the button while searching
+        self.progress_bar.show()
+        self.progress_bar.setValue(0)
+
         text = self.searchbar.text()
         if text == '':
             return
@@ -105,6 +119,13 @@ class VariableBrowser(QWidget):
             pattern = ''
         data_source_name = self.get_current_source()
         found = AppDataAccess.da.get_var_list(data_source_name=data_source_name, pattern=pattern)
+
+        # Progress and GUI updated
+        for i, item in enumerate(found):
+            progress = int((i/len(found)) * 100)
+            self.progress_bar.setValue(progress)
+            QCoreApplication.instance().processEvents()
+
         if found:
             new_dict = parse(found)
             self.tree.models['SEARCH'].load(new_dict)
@@ -112,6 +133,11 @@ class VariableBrowser(QWidget):
             self.tree.models['SEARCH'].load({})
 
         self.tree.check_folder(self.tree.model()._root_item, data_source_name)
+
+        # Search done
+        self.search_btn.setEnabled(True)  # Enable the button after refreshing
+        self.progress_bar.setValue(100)  # Progress bar completed
+        self.progress_bar.hide()
 
     def add_to_table(self):
         indexes = self.tree.selectedIndexes()
@@ -136,8 +162,18 @@ class VariableBrowser(QWidget):
         self.tableView.clear_table()
 
     def refresh(self):
+        self.refresh_btn.setEnabled(False)  # Disable the button while refreshing
+        self.progress_bar.show()
+
         data_source_name = self.get_current_source()
         lines = AppDataAccess.da.get_cbs_list(data_source_name=data_source_name)
+
+        # Progress and GUI updated
+        for i, item in enumerate(lines):
+            progress = int((i / len(lines)) * 100)
+            self.progress_bar.setValue(progress)
+            QCoreApplication.instance().processEvents()
+
         if lines:
             refresh_dict = parse(lines)
             self.tree.models[data_source_name].load(refresh_dict)
@@ -146,3 +182,8 @@ class VariableBrowser(QWidget):
             self.tree.models[data_source_name].load(refresh_dict_fail)
 
         self.tree.check_folder(self.tree.models[data_source_name]._root_item, data_source_name)
+
+        # Refresh done
+        self.refresh_btn.setEnabled(True)  # Enable the button after refreshing
+        self.progress_bar.setValue(100)  # Progress bar completed
+        self.progress_bar.hide()
