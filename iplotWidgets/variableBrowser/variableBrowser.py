@@ -1,6 +1,8 @@
+import time
+
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox, QHBoxLayout, QVBoxLayout, QProgressBar
-from PySide6.QtCore import Qt, Signal, QCoreApplication
+from PySide6.QtCore import Qt, Signal
 from iplotDataAccess.appDataAccess import AppDataAccess
 from iplotWidgets.variableBrowser.variableTree import VariableTree
 from iplotWidgets.variableBrowser.variableTable import VariableTable
@@ -48,6 +50,7 @@ class VariableBrowser(QWidget):
         # Progress bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setParent(self)
+        self.progress_bar.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.progress_bar.setMinimum(0)
         self.progress_bar.setMaximum(100)
         self.progress_bar.hide()
@@ -98,13 +101,15 @@ class VariableBrowser(QWidget):
             self.tree.set_model(self.get_current_source())
 
     def search(self):
-        self.search_btn.setEnabled(False)  # Disable the button while searching
-        self.progress_bar.show()
-        self.progress_bar.setValue(0)
-
         text = self.searchbar.text()
         if text == '':
             return
+        self.search_btn.setEnabled(False)
+        self.progress_bar.show()
+        self.progress_bar.setFormat("Retrieving the variable list from the server")
+        self.progress_bar.setValue(25)
+        time.sleep(0.4)
+
         self.tree.set_model('SEARCH')
 
         type_search = self.type_search.currentText()
@@ -120,23 +125,28 @@ class VariableBrowser(QWidget):
         data_source_name = self.get_current_source()
         found = AppDataAccess.da.get_var_list(data_source_name=data_source_name, pattern=pattern)
 
-        # Progress and GUI updated
-        for i, item in enumerate(found):
-            progress = int((i/len(found)) * 100)
-            self.progress_bar.setValue(progress)
-            QCoreApplication.instance().processEvents()
-
         if found:
+            self.progress_bar.setFormat("Loading variables into the model")
+            self.progress_bar.setValue(50)
             new_dict = parse(found)
             self.tree.models['SEARCH'].load(new_dict)
         else:
+            self.progress_bar.setFormat("Empty model")
+            self.progress_bar.setValue(50)
             self.tree.models['SEARCH'].load({})
 
+        time.sleep(0.4)
+        self.progress_bar.setFormat("Checking the information of the root variables")
+        self.progress_bar.setValue(75)
         self.tree.check_folder(self.tree.model()._root_item, data_source_name)
 
+        time.sleep(0.4)
+
         # Search done
-        self.search_btn.setEnabled(True)  # Enable the button after refreshing
-        self.progress_bar.setValue(100)  # Progress bar completed
+        self.search_btn.setEnabled(True)
+        self.progress_bar.setFormat("Finished")
+        self.progress_bar.setValue(100)
+        time.sleep(0.4)
         self.progress_bar.hide()
 
     def add_to_table(self):
@@ -164,26 +174,30 @@ class VariableBrowser(QWidget):
     def refresh(self):
         self.refresh_btn.setEnabled(False)  # Disable the button while refreshing
         self.progress_bar.show()
+        self.progress_bar.setFormat("Retrieving the variable list from the server")
+        self.progress_bar.setValue(25)
+        time.sleep(0.4)
 
         data_source_name = self.get_current_source()
         lines = AppDataAccess.da.get_cbs_list(data_source_name=data_source_name)
 
-        # Progress and GUI updated
-        for i, item in enumerate(lines):
-            progress = int((i / len(lines)) * 100)
-            self.progress_bar.setValue(progress)
-            QCoreApplication.instance().processEvents()
-
+        self.progress_bar.setFormat("Loading variables into the model")
+        self.progress_bar.setValue(50)
+        time.sleep(0.4)
         if lines:
             refresh_dict = parse(lines)
             self.tree.models[data_source_name].load(refresh_dict)
         else:
-            refresh_dict_fail = parse({'Error when trying to refresh data source'})
-            self.tree.models[data_source_name].load(refresh_dict_fail)
+            self.tree.models[data_source_name].load({})
 
+        self.progress_bar.setFormat("Checking the information of the root variables")
+        self.progress_bar.setValue(75)
+        time.sleep(0.4)
         self.tree.check_folder(self.tree.models[data_source_name]._root_item, data_source_name)
 
         # Refresh done
-        self.refresh_btn.setEnabled(True)  # Enable the button after refreshing
-        self.progress_bar.setValue(100)  # Progress bar completed
+        self.refresh_btn.setEnabled(True)
+        self.progress_bar.setFormat("Finished")
+        self.progress_bar.setValue(100)
+        time.sleep(0.4)  # Progress bar completed
         self.progress_bar.hide()
