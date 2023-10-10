@@ -1,5 +1,7 @@
+import time
+
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox, QHBoxLayout, QVBoxLayout
+from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox, QHBoxLayout, QVBoxLayout, QProgressBar
 from PySide6.QtCore import Qt, Signal
 from iplotDataAccess.appDataAccess import AppDataAccess
 from iplotWidgets.variableBrowser.variableTree import VariableTree
@@ -39,9 +41,19 @@ class VariableBrowser(QWidget):
 
         self.search_btn = QPushButton('Search')
         self.search_btn.clicked.connect(self.search)
+        self.refresh_btn = QPushButton('Refresh')
+        self.refresh_btn.clicked.connect(self.refresh)
         self.type_search = QComboBox()
         self.type_search.addItems(['contains', 'startsWith', 'endsWith'])
         # self.type_search.currentTextChanged.connect(self.update_display)
+
+        # Progress bar
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setParent(self)
+        self.progress_bar.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.progress_bar.setMinimum(0)
+        self.progress_bar.setMaximum(100)
+        self.progress_bar.hide()
 
         self.data_sources = AppDataAccess.da.get_connected_data_sources()
         self.sources_combo = QComboBox()
@@ -50,9 +62,13 @@ class VariableBrowser(QWidget):
 
         top_h_layout = QHBoxLayout()
         top_h_layout.addWidget(self.sources_combo)
+        top_h_layout.addWidget(self.refresh_btn)
         top_h_layout.addWidget(self.searchbar)
         top_h_layout.addWidget(self.type_search)
         top_h_layout.addWidget(self.search_btn)
+        top_v_layout = QVBoxLayout()
+        top_v_layout.addLayout(top_h_layout)
+        top_v_layout.addWidget(self.progress_bar)
 
         bot_v_layout = QVBoxLayout()
         bot_h_layout = QHBoxLayout()
@@ -65,7 +81,7 @@ class VariableBrowser(QWidget):
         mid_h_layout.addWidget(self.tree)
         mid_h_layout.addWidget(self.tableView)
         main_v_layout = QVBoxLayout()
-        main_v_layout.addLayout(top_h_layout)
+        main_v_layout.addLayout(top_v_layout)
         self.add_layout = main_v_layout.addLayout(mid_h_layout)
         main_v_layout.addLayout(bot_v_layout)
         self.setLayout(main_v_layout)
@@ -88,6 +104,12 @@ class VariableBrowser(QWidget):
         text = self.searchbar.text()
         if text == '':
             return
+        self.search_btn.setEnabled(False)
+        self.progress_bar.show()
+        self.progress_bar.setFormat("Retrieving the variable list from the server")
+        self.progress_bar.setValue(25)
+        time.sleep(0.4)
+
         self.tree.set_model('SEARCH')
 
         type_search = self.type_search.currentText()
@@ -102,13 +124,30 @@ class VariableBrowser(QWidget):
             pattern = ''
         data_source_name = self.get_current_source()
         found = AppDataAccess.da.get_var_list(data_source_name=data_source_name, pattern=pattern)
+
         if found:
+            self.progress_bar.setFormat("Loading variables into the model")
+            self.progress_bar.setValue(50)
             new_dict = parse(found)
             self.tree.models['SEARCH'].load(new_dict)
         else:
+            self.progress_bar.setFormat("Empty model")
+            self.progress_bar.setValue(50)
             self.tree.models['SEARCH'].load({})
 
+        time.sleep(0.4)
+        self.progress_bar.setFormat("Checking the information of the root variables")
+        self.progress_bar.setValue(75)
         self.tree.check_folder(self.tree.model()._root_item, data_source_name)
+
+        time.sleep(0.4)
+
+        # Search done
+        self.search_btn.setEnabled(True)
+        self.progress_bar.setFormat("Finished")
+        self.progress_bar.setValue(100)
+        time.sleep(0.4)
+        self.progress_bar.hide()
 
     def add_to_table(self):
         indexes = self.tree.selectedIndexes()
@@ -131,3 +170,34 @@ class VariableBrowser(QWidget):
         df = self.tableView.get_variables_df()
         self.cmd_finish.emit(df)
         self.tableView.clear_table()
+
+    def refresh(self):
+        self.refresh_btn.setEnabled(False)  # Disable the button while refreshing
+        self.progress_bar.show()
+        self.progress_bar.setFormat("Retrieving the variable list from the server")
+        self.progress_bar.setValue(25)
+        time.sleep(0.4)
+
+        data_source_name = self.get_current_source()
+        lines = AppDataAccess.da.get_cbs_list(data_source_name=data_source_name)
+
+        self.progress_bar.setFormat("Loading variables into the model")
+        self.progress_bar.setValue(50)
+        time.sleep(0.4)
+        if lines:
+            refresh_dict = parse(lines)
+            self.tree.models[data_source_name].load(refresh_dict)
+        else:
+            self.tree.models[data_source_name].load({})
+
+        self.progress_bar.setFormat("Checking the information of the root variables")
+        self.progress_bar.setValue(75)
+        time.sleep(0.4)
+        self.tree.check_folder(self.tree.models[data_source_name]._root_item, data_source_name)
+
+        # Refresh done
+        self.refresh_btn.setEnabled(True)
+        self.progress_bar.setFormat("Finished")
+        self.progress_bar.setValue(100)
+        time.sleep(0.4)  # Progress bar completed
+        self.progress_bar.hide()

@@ -25,7 +25,6 @@ class VariableTree(QTreeView):
         self.setDragEnabled(True)
         self.setDropIndicatorShown(True)
         self.setDragDropMode(QAbstractItemView.InternalMove)
-        # AccessHelper.da.getData(dataSName="codacuda", varname='IC-ICH-PCF1:9401_0', tsS=0, tsE=1676885937000000000,nbp=100)
         self.expanded.connect(self.expand)
         self.load_model(DEFAULT_SOURCE)
         self.dragged_item = None
