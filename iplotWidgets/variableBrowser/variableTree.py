@@ -1,12 +1,10 @@
 from PySide6.QtGui import QCursor
 from PySide6.QtCore import QFileInfo, Qt
-from PySide6.QtWidgets import QTreeView, QToolTip, QAbstractItemView, QMenu
+from PySide6.QtWidgets import QTreeView, QToolTip, QAbstractItemView
 from iplotDataAccess.appDataAccess import AppDataAccess
 from iplotWidgets.variableBrowser.models.mtJsonModel import JsonModel, TreeItem
 from iplotWidgets.variableBrowser.tools.converters import parse_groups_to_dict, parse_vars_to_dict
 from pathlib import Path
-
-DEFAULT_SOURCE = 'codacuda'
 
 
 class VariableTree(QTreeView):
@@ -26,7 +24,7 @@ class VariableTree(QTreeView):
         self.setDropIndicatorShown(True)
         self.setDragDropMode(QAbstractItemView.InternalMove)
         self.expanded.connect(self.expand)
-        self.load_model(DEFAULT_SOURCE)
+        self.load_model(AppDataAccess.da.getDefaultDSName())
         self.dragged_item = None
 
     def openMenu(self, position):
@@ -120,7 +118,7 @@ class VariableTree(QTreeView):
                         document = parse_groups_to_dict(lines)
                         self.models[data_source_name].load(document)
 
-            self.check_folder(self.models[data_source_name]._root_item, data_source_name)
+            self.check_folder(self.models[data_source_name].root_item, data_source_name)
 
         self.setModel(self.models[data_source_name])
 
@@ -132,7 +130,6 @@ class VariableTree(QTreeView):
         self.setModel(None)
 
     def handle_item_entered(self, index):
-        data_source_name = self.parent().get_current_source()
         if not index.isValid():
             return
         ix = index.internalPointer()

@@ -7,6 +7,9 @@ from iplotDataAccess.appDataAccess import AppDataAccess
 from iplotWidgets.variableBrowser.variableTree import VariableTree
 from iplotWidgets.variableBrowser.variableTable import VariableTable
 from iplotWidgets.variableBrowser.tools.converters import parse
+from iplotLogging import setupLogger as setupLog
+
+logger = setupLog.get_logger(__name__)
 
 
 class VariableBrowser(QWidget):
@@ -130,17 +133,18 @@ class VariableBrowser(QWidget):
             self.progress_bar.setValue(50)
             new_dict = parse(found)
             self.tree.models['SEARCH'].load(new_dict)
+            time.sleep(0.4)
+            self.progress_bar.setFormat("Checking the information of the root variables")
+            self.progress_bar.setValue(75)
+            self.tree.check_folder(self.tree.model().root_item, data_source_name)
+            time.sleep(0.4)
         else:
+            self.progress_bar.setStyleSheet("QProgressBar::chunk {background-color: #FF6666;}")
             self.progress_bar.setFormat("Empty model")
             self.progress_bar.setValue(50)
+            self.progress_bar.setStyleSheet("")
+            time.sleep(2)
             self.tree.models['SEARCH'].load({})
-
-        time.sleep(0.4)
-        self.progress_bar.setFormat("Checking the information of the root variables")
-        self.progress_bar.setValue(75)
-        self.tree.check_folder(self.tree.model()._root_item, data_source_name)
-
-        time.sleep(0.4)
 
         # Search done
         self.search_btn.setEnabled(True)
@@ -172,32 +176,42 @@ class VariableBrowser(QWidget):
         self.tableView.clear_table()
 
     def refresh(self):
-        self.refresh_btn.setEnabled(False)  # Disable the button while refreshing
-        self.progress_bar.show()
-        self.progress_bar.setFormat("Retrieving the variable list from the server")
-        self.progress_bar.setValue(25)
-        time.sleep(0.4)
+        try:
+            self.refresh_btn.setEnabled(False)  # Disable the button while refreshing
+            self.progress_bar.show()
+            self.progress_bar.setFormat("Retrieving the variable list from the server")
+            self.progress_bar.setValue(25)
+            time.sleep(0.4)
 
-        data_source_name = self.get_current_source()
-        lines = AppDataAccess.da.get_cbs_list(data_source_name=data_source_name)
+            data_source_name = self.get_current_source()
+            lines = AppDataAccess.da.get_cbs_list(data_source_name=data_source_name)
 
-        self.progress_bar.setFormat("Loading variables into the model")
-        self.progress_bar.setValue(50)
-        time.sleep(0.4)
-        if lines:
-            refresh_dict = parse(lines)
-            self.tree.models[data_source_name].load(refresh_dict)
-        else:
-            self.tree.models[data_source_name].load({})
+            self.progress_bar.setFormat("Loading variables into the model")
+            self.progress_bar.setValue(50)
+            time.sleep(0.4)
+            if lines:
+                refresh_dict = parse(lines)
+                self.tree.models[data_source_name].load(refresh_dict)
+            else:
+                self.tree.models[data_source_name].load({})
 
-        self.progress_bar.setFormat("Checking the information of the root variables")
-        self.progress_bar.setValue(75)
-        time.sleep(0.4)
-        self.tree.check_folder(self.tree.models[data_source_name]._root_item, data_source_name)
+            self.progress_bar.setFormat("Checking the information of the root variables")
+            self.progress_bar.setValue(75)
+            time.sleep(0.4)
+            self.tree.check_folder(self.tree.models[data_source_name].root_item, data_source_name)
 
-        # Refresh done
-        self.refresh_btn.setEnabled(True)
-        self.progress_bar.setFormat("Finished")
-        self.progress_bar.setValue(100)
-        time.sleep(0.4)  # Progress bar completed
-        self.progress_bar.hide()
+            # Refresh done
+            self.refresh_btn.setEnabled(True)
+            self.progress_bar.setFormat("Finished")
+            self.progress_bar.setValue(100)
+            time.sleep(0.4)  # Progress bar completed
+            self.progress_bar.hide()
+        except Exception as e:
+            logger.error(f"Error while trying to refresh the model {e}")
+            self.refresh_btn.setEnabled(True)
+            self.progress_bar.setStyleSheet("QProgressBar::chunk {background-color: #FF6666;}")
+            self.progress_bar.setFormat(type(e).__name__ + " " + str(e))
+            self.progress_bar.setValue(100)
+            time.sleep(3)
+            self.progress_bar.setStyleSheet("")
+            self.progress_bar.hide()

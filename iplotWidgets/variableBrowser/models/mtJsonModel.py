@@ -11,7 +11,7 @@ class JsonModel(QAbstractItemModel):
     def __init__(self, parent: QObject = None, name=''):
         super().__init__(parent)
 
-        self._root_item = TreeItem()
+        self.root_item = TreeItem()
         self.name = name
 
     def supportedDropActions(self):
@@ -48,7 +48,7 @@ class JsonModel(QAbstractItemModel):
 
         self.beginResetModel()
 
-        self._root_item = TreeItem.load(document)
+        self.root_item = TreeItem.load(document)
 
         self.endResetModel()
 
@@ -96,7 +96,7 @@ class JsonModel(QAbstractItemModel):
             return QModelIndex()
 
         if not parent.isValid():
-            parent_item = self._root_item
+            parent_item = self.root_item
         else:
             parent_item = parent.internalPointer()
 
@@ -119,7 +119,7 @@ class JsonModel(QAbstractItemModel):
         child_item = index.internalPointer()
         parent_item = child_item.parent()
 
-        if parent_item == self._root_item:
+        if parent_item == self.root_item:
             return QModelIndex()
 
         return self.createIndex(parent_item.row(), 0, parent_item)
@@ -143,7 +143,7 @@ class JsonModel(QAbstractItemModel):
             return False
 
         if not parent.isValid():
-            parent_item = self._root_item
+            parent_item = self.root_item
         else:
             parent_item = parent.internalPointer()
 
@@ -158,7 +158,7 @@ class JsonModel(QAbstractItemModel):
             return 0
 
         if not parent.isValid():
-            parent_item = self._root_item
+            parent_item = self.root_item
         else:
             parent_item = parent.internalPointer()
 
