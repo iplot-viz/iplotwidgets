@@ -285,8 +285,6 @@ class ModuleBrowser(QWidget):
 
     def check_module(self):
         text = self.searchbar.text()
-        if text == '':
-            return
 
         try:
             self.parser.load_modules(text)
