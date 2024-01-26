@@ -306,19 +306,14 @@ class ModuleBrowser(QWidget):
                 self.tableView.model.add_row([value])
 
     def clear_selected_module(self):
-        rows = self.tableView.remove_selected_module()
-        rows = [i for i in rows if i > 3]
-        self.parser.clear_modules(rows)
+        index = self.tableView.selectedIndexes()
+        rows = [ix.row() for ix in index]
+        valid_rows = self.parser.clear_modules(rows)
+        self.tableView.remove_selected_module(valid_rows)
 
     def reset_modules(self):
-        self.parser.reset_modules()
-        self.tableView.clear_table()
-
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Return:
-            self.add_to_table()
-        elif event.key() == Qt.Key.Key_Delete:
-            self.tableView.remove_from_table()
+        defult_modules = self.parser.reset_modules()
+        self.tableView.clear_table(defult_modules)
 
     def finish(self):
         df = self.tableView.get_variables_df()

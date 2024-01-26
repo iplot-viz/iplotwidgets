@@ -122,14 +122,12 @@ class ModuleTableModel(QAbstractTableModel):
         self.layoutChanged.emit()
 
     def remove_row(self, selectedModule):
-        # Check
-        selectedModule = [i for i in selectedModule if i > 3]
         self.dataframe.drop(selectedModule, inplace=True)
         self.dataframe.reset_index(drop=True, inplace=True)
         self.layoutChanged.emit()
 
-    def clear_model(self):
-        self.dataframe = self.dataframe.head(4)
+    def clear_model(self, num):
+        self.dataframe = self.dataframe.head(num)
         self.layoutChanged.emit()
 
     def get_model_list(self):
@@ -158,15 +156,13 @@ class ModuleTable(QTableView):
             self.model_table.removeRow(row)
         self.clearSelection()
 
-    def remove_selected_module(self):
-        index = self.selectedIndexes()
-        rows = [ix.row() for ix in index]
+    def remove_selected_module(self, rows):
         self.model.remove_row(rows)
         self.clearSelection()
         return rows
 
-    def clear_table(self):
-        self.model.clear_model()
+    def clear_table(self, num):
+        self.model.clear_model(num)
 
     def get_variables_df(self) -> pd.DataFrame:
         return self.model.dataframe
