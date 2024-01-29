@@ -1,7 +1,7 @@
 import pandas as pd
-from PySide6.QtGui import QStandardItemModel
+from PySide6.QtGui import QStandardItemModel, QColor
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelIndex
-from PySide6.QtWidgets import QTableView, QAbstractItemView, QHeaderView
+from PySide6.QtWidgets import QTableView, QAbstractItemView, QHeaderView, QStyledItemDelegate
 from PySide6.QtCore import Qt
 from typing import *
 
@@ -84,11 +84,21 @@ class VariableTable(QTableView):
         return self.model.get_model_list()
 
 
+class CustomItemDelegate(QStyledItemDelegate):
+    def initStyleOption(self, option, index):
+        super().initStyleOption(option, index)
+
+        # Cambia el fondo para las primeras tres filas
+        if index.row() < option.widget.model.total_default_modules:
+            option.backgroundBrush = QColor(200, 200, 200)  # Fondo gris
+
+
 class ModuleTableModel(QAbstractTableModel):
 
-    def __init__(self, ):
+    def __init__(self):
         super(ModuleTableModel, self).__init__()
         self._dataframe = pd.DataFrame(columns=['Module'])
+        self._total_default_modules = 0
 
     @property
     def dataframe(self) -> pd.DataFrame:
@@ -99,6 +109,16 @@ class ModuleTableModel(QAbstractTableModel):
     def dataframe(self, dataframe: pd.DataFrame):
         """Set path of the current item"""
         self._dataframe = dataframe
+
+    @property
+    def total_default_modules(self) -> int:
+        """Return number of default modules"""
+        return self._total_default_modules
+
+    @total_default_modules.setter
+    def total_default_modules(self, total_default_modules: int):
+        """Set number of default modules"""
+        self._total_default_modules = total_default_modules
 
     def data(self, index: Union[QModelIndex, QPersistentModelIndex], role: int = ...) -> Any:
         if role == Qt.ItemDataRole.DisplayRole:
@@ -121,8 +141,8 @@ class ModuleTableModel(QAbstractTableModel):
         self.dataframe = pd.concat([self.dataframe, new_dataframe]).reset_index(drop=True)
         self.layoutChanged.emit()
 
-    def remove_row(self, selectedModule):
-        self.dataframe.drop(selectedModule, inplace=True)
+    def remove_row(self, selected_module):
+        self.dataframe.drop(selected_module, inplace=True)
         self.dataframe.reset_index(drop=True, inplace=True)
         self.layoutChanged.emit()
 
@@ -133,12 +153,11 @@ class ModuleTableModel(QAbstractTableModel):
     def get_model_list(self):
         return self.dataframe['Module'].values.tolist()
 
+
 class ModuleTable(QTableView):
     def __init__(self):
         QTableView.__init__(self)
         self.setSelectionMode(self.selectionMode().ExtendedSelection)
-        self.model_table = QStandardItemModel()
-        self.setModel(self.model_table)
         self.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         self.horizontalHeader().setStretchLastSection(True)
@@ -146,15 +165,7 @@ class ModuleTable(QTableView):
         self.setColumnWidth(0, 100)
         self.model = ModuleTableModel()
         self.setModel(self.model)
-
-        print()
-
-    def remove_from_table(self):
-        index = self.selectedIndexes()
-        rows = [ix.row() for ix in index]
-        for row in reversed(rows):
-            self.model_table.removeRow(row)
-        self.clearSelection()
+        self.setItemDelegate(CustomItemDelegate())
 
     def remove_selected_module(self, rows):
         self.model.remove_row(rows)

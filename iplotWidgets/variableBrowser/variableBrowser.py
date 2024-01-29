@@ -1,7 +1,8 @@
 import time
 
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox, QHBoxLayout, QVBoxLayout, QProgressBar, QMessageBox
+from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox, QHBoxLayout, QVBoxLayout, \
+    QProgressBar, QMessageBox
 from PySide6.QtCore import Qt, Signal
 from iplotDataAccess.appDataAccess import AppDataAccess
 from iplotWidgets.variableBrowser.variableTree import VariableTree
@@ -218,6 +219,7 @@ class VariableBrowser(QWidget):
             self.progress_bar.setStyleSheet("")
             self.progress_bar.hide()
 
+
 class ModuleBrowser(QWidget):
     cmd_finish = Signal(object)
 
@@ -264,19 +266,18 @@ class ModuleBrowser(QWidget):
         mid_h_layout.addWidget(self.tableView)
         main_v_layout = QVBoxLayout()
         main_v_layout.addLayout(top_v_layout)
-        self.add_layout = main_v_layout.addLayout(mid_h_layout)
+        main_v_layout.addLayout(mid_h_layout)
         main_v_layout.addLayout(bot_h_layout)
         self.setLayout(main_v_layout)
 
-        #self.finish_btn.clicked.connect(self.finish)
+        # self.finish_btn.clicked.connect(self.finish)
 
         # Show available modules when loading the window.
         self.starter_modules()
 
     def starter_modules(self):
         modules = self.get_current_modules()
-
-        data_list = self.tableView.get_variables_list()
+        self.tableView.model.total_default_modules = self.parser.get_total_default_modules()
         for module in modules:
             self.tableView.model.add_row([module])
 
