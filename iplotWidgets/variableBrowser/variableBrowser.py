@@ -288,6 +288,7 @@ class ModuleBrowser(QWidget):
 
         try:
             self.parser.load_modules(text)
+            self.parser.add_module_to_config(text)
 
         except Exception as e:
             box = QMessageBox()
