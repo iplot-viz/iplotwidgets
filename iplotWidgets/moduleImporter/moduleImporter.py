@@ -2,7 +2,7 @@ from typing import List
 
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QHBoxLayout, QVBoxLayout, QMessageBox
-from PySide6.QtCore import Qt, Signal, QModelIndex
+from PySide6.QtCore import Qt, Signal
 from iplotWidgets.moduleImporter.moduleTable import ModuleTable
 from iplotProcessing.tools.parsers import Parser
 
