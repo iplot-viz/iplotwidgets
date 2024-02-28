@@ -1,6 +1,8 @@
+from typing import List
+
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QHBoxLayout, QVBoxLayout, QMessageBox
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QModelIndex
 from iplotWidgets.moduleImporter.moduleTable import ModuleTable
 from iplotProcessing.tools.parsers import Parser
 
@@ -28,6 +30,10 @@ class ModuleImporter(QWidget):
             ),
         )
         self.parser = Parser()
+
+        if not self.parser.has_access_to_config():
+            show_msg("Error: You do not have the necessary permissions to modify the configuration file. "
+                     "Change the environment variable: IPLOT_PMODULE_PATH value")
 
         self.tableView = ModuleTable()
         self.searchbar = QLineEdit()
@@ -101,10 +107,18 @@ class ModuleImporter(QWidget):
         self.tableView.remove_selected_module(valid_rows)
 
     def reset_modules(self):
-        default_modules = self.parser.reset_modules()
-        self.tableView.clear_table(default_modules)
+        self.parser.reset_modules()
+        self.tableView.clear_table(self.parser.get_total_default_modules())
 
     def finish(self):
         df = self.tableView.get_variables_df()
         self.cmd_finish.emit(df)
-        self.tableView.clear_table()
+        self.tableView.clear_table(self.parser.get_total_default_modules())
+
+
+def show_msg(message):
+    box = QMessageBox()
+    box.setIcon(QMessageBox.Critical)
+    box.setWindowTitle("Error")
+    box.setText(message)
+    box.exec_()
