@@ -1,12 +1,13 @@
 import pandas as pd
 from PySide6.QtGui import QStandardItemModel
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelIndex
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelIndex, Signal
 from PySide6.QtWidgets import QTableView, QAbstractItemView, QHeaderView
 from PySide6.QtCore import Qt
 from typing import *
 
 
 class TableModel(QAbstractTableModel):
+    layoutChanged = Signal()
 
     def __init__(self):
         super(TableModel, self).__init__()
@@ -82,4 +83,3 @@ class VariableTable(QTableView):
 
     def get_variables_list(self):
         return self.model.get_model_list()
-

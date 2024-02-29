@@ -92,7 +92,7 @@ class VariableBrowser(QWidget):
 
         self.finish_btn.clicked.connect(self.finish)
 
-    def get_current_source(self):
+    def get_current_source(self) -> str:
         return self.sources_combo.currentText()
 
     def change_model(self):
@@ -216,5 +216,3 @@ class VariableBrowser(QWidget):
             time.sleep(3)
             self.progress_bar.setStyleSheet("")
             self.progress_bar.hide()
-
-

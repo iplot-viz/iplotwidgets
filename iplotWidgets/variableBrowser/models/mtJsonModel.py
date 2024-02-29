@@ -348,8 +348,8 @@ class TreeItem:
 
     @staticmethod
     def extract_parts(element):
-        partes = re.findall(r'(\d+|\D+)', element)
-        return [int(parte) if parte.isdigit() else parte for parte in partes]
+        parts = re.findall(r'(\d+|\D+)', element)
+        return [int(part) if part.isdigit() else part for part in parts]
 
     @classmethod
     def load_nested_child(cls, value: Union[List, Dict], parent: "TreeItem" = None, path: object = None,

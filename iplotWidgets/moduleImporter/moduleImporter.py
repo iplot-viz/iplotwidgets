@@ -3,6 +3,7 @@ from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QHBoxLayo
 from PySide6.QtCore import Qt, Signal
 from iplotWidgets.moduleImporter.moduleTable import ModuleTable
 from iplotProcessing.tools.parsers import Parser
+from typing import List
 
 from iplotLogging import setupLogger as setupLog
 
@@ -68,7 +69,7 @@ class ModuleImporter(QWidget):
         for module in modules:
             self.tableView.model.add_row([module])
 
-    def get_current_modules(self):
+    def get_current_modules(self) -> List[str]:
         return self.parser.get_modules()
 
     def check_module(self):
@@ -103,8 +104,3 @@ class ModuleImporter(QWidget):
     def reset_modules(self):
         default_modules = self.parser.reset_modules()
         self.tableView.clear_table(default_modules)
-
-    def finish(self):
-        df = self.tableView.get_variables_df()
-        self.cmd_finish.emit(df)
-        self.tableView.clear_table()

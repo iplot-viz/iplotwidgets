@@ -2,7 +2,7 @@ import pandas as pd
 from PySide6.QtGui import QColor
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelIndex
 from PySide6.QtWidgets import QTableView, QAbstractItemView, QHeaderView, QStyledItemDelegate
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 
 from typing import *
 
@@ -20,7 +20,7 @@ class ModuleTable(QTableView):
         self.setModel(self.model)
         self.setItemDelegate(CustomItemDelegate())
 
-    def remove_selected_module(self, rows):
+    def remove_selected_module(self, rows) -> List[int]:
         self.model.remove_row(rows)
         self.clearSelection()
         return rows
@@ -31,7 +31,7 @@ class ModuleTable(QTableView):
     def get_variables_df(self) -> pd.DataFrame:
         return self.model.dataframe
 
-    def get_variables_list(self):
+    def get_variables_list(self) -> List[str]:
         return self.model.get_model_list()
 
 
@@ -39,12 +39,13 @@ class CustomItemDelegate(QStyledItemDelegate):
     def initStyleOption(self, option, index):
         super().initStyleOption(option, index)
 
-        # Cambia el fondo para las primeras tres filas
+        # Change background color for the first n rows of the table
         if index.row() < option.widget.model.total_default_modules:
-            option.backgroundBrush = QColor(200, 200, 200)  # Fondo gris
+            option.backgroundBrush = QColor(200, 200, 200)  # Gray background
 
 
 class ModuleTableModel(QAbstractTableModel):
+    layoutChanged = Signal()
 
     def __init__(self):
         super(ModuleTableModel, self).__init__()
@@ -101,5 +102,5 @@ class ModuleTableModel(QAbstractTableModel):
         self.dataframe = self.dataframe.head(num)
         self.layoutChanged.emit()
 
-    def get_model_list(self):
+    def get_model_list(self) -> List[str]:
         return self.dataframe['Module'].values.tolist()

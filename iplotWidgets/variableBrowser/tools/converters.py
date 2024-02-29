@@ -15,22 +15,23 @@ def parse_groups_to_dict(lines: List) -> dict:
     return result
 
 
-def parse_vars_to_dict(lines: List, pattern) -> dict:
+def parse_vars_to_dict(lines: List, pattern: str) -> dict:
     result = {}
     folders = [line.split(':')[1].split('-')[0] for line in lines]
     for ix in range(len(lines)):
         if folders.count(folders[ix]) > 1:
-            result.setdefault(f'{pattern}:{folders[ix]}', {})
-            result[f'{pattern}:{folders[ix]}'].update({lines[ix] + '?V': ''})
+            key = f'{pattern}:{folders[ix]}'
+            if key not in result:
+                result[key] = {}
+            result[key][lines[ix] + '?V'] = ''
         else:
             result.update({lines[ix] + '?V': ''})
 
     return result
 
 
-def parse(lines):
+def parse(lines) -> dict:
     result = dict()
-    folders = [line.split(':')[1].split('-')[0] for line in lines if ':' in line]
     for line in lines:
         list_line = line.replace(':', '-:', 1).split('-')
         cur_dict = result

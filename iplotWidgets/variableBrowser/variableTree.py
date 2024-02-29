@@ -13,7 +13,7 @@ class VariableTree(QTreeView):
         self.models = {'SEARCH': JsonModel(name='SEARCH')}
         self.setSelectionMode(self.selectionMode().ExtendedSelection)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.customContextMenuRequested.connect(self.openMenu)
+        self.customContextMenuRequested.connect(self.open_menu)
         self.setHeaderHidden(True)
         self.setColumnWidth(0, 205)
         self.setMouseTracking(True)
@@ -27,7 +27,7 @@ class VariableTree(QTreeView):
         self.load_model(AppDataAccess.da.getDefaultDSName())
         self.dragged_item = None
 
-    def openMenu(self, position):
+    def open_menu(self, position):
         index = self.indexAt(position).internalPointer()
         if index.value_type == "nested_variable":
             temp = index.children
