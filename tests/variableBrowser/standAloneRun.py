@@ -1,13 +1,12 @@
 # Description: Code to test MTVarSelector as a component
-# Author: Jhon Steeven Cabanilla Alvarado
 
 import sys
 from PySide6.QtWidgets import QApplication
 from iplotWidgets.variableBrowser.variableBrowser import VariableBrowser
 from iplotDataAccess.appDataAccess import AppDataAccess
-import iplotLogging.setupLogger as ls
+import iplotLogging.setupLogger as Sl
 
-logger = ls.get_logger(__name__)
+logger = Sl.get_logger(__name__)
 
 
 class TestVariableBrowser:
@@ -35,4 +34,3 @@ class TestVariableBrowser:
 if __name__ == '__main__':
     ob = TestVariableBrowser()
     sys.exit(ob.test_run_app())
-
