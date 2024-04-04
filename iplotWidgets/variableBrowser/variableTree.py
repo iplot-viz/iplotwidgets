@@ -24,7 +24,7 @@ class VariableTree(QTreeView):
         self.setDropIndicatorShown(True)
         self.setDragDropMode(QAbstractItemView.InternalMove)
         self.expanded.connect(self.expand)
-        self.load_model(AppDataAccess.da.getDefaultDSName())
+        self.load_model(AppDataAccess.da.get_default_ds_name())
         self.dragged_item = None
 
     def openMenu(self, position):
