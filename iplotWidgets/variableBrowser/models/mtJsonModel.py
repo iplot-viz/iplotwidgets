@@ -4,15 +4,21 @@ from PySide6.QtCore import QAbstractItemModel, QModelIndex, QObject, Qt, QSize, 
 
 import re
 
+from iplotDataAccess import imasAccess
+from iplotDataAccess.appDataAccess import AppDataAccess
+from iplotWidgets.variableBrowser.tools.converters import parse_groups_to_dict, parse_vars_to_dict
+
 
 class JsonModel(QAbstractItemModel):
     """ An editable model of Json data """
 
-    def __init__(self, parent: QObject = None, name=''):
+    def __init__(self, name: str, dtype: str, parent: QObject = None):
         super().__init__(parent)
 
         self.root_item = TreeItem()
         self.name = name
+        self.dtype = dtype
+        self.load()
 
     def supportedDropActions(self):
         return Qt.CopyAction | Qt.MoveAction
@@ -35,28 +41,39 @@ class JsonModel(QAbstractItemModel):
 
         return None
 
-    def load(self, document: dict):
+    def load(self):
         """Load model from a nested dictionary returned by json.loads()
-
-        Arguments:
-            document (dict): JSON-compatible dictionary
         """
-
-        assert isinstance(
-            document, (dict, list, tuple)
-        ), f"`document` must be of dict, list or tuple, not {type(document)}"
 
         self.beginResetModel()
 
-        self.root_item = TreeItem.load(document)
+        lines = AppDataAccess.da.get_cbs_list(data_source_name=self.name)
+        if self.dtype == "IMAS_UDA":
+            self.root_item = ImasTreeItem.load(lines)
+        elif self.dtype == "CODAC_UDA":
+            document = parse_groups_to_dict(lines)
+            self.root_item = UdaTreeItem.load(document)
 
+        self.root_item.check_folder(self.name)
         self.endResetModel()
 
         return True
 
+    def expand(self, item):
+        if self.dtype != 'CODAC_UDA':
+            return
+        path = item.path
+        pattern = f'{path}:.*'
+        data = AppDataAccess.da.get_var_list(data_source_name=self.name, pattern=pattern)
+        if data:
+            data_parsed = parse_vars_to_dict(data, path)
+            self.add_children(parent=item, document=data_parsed)
+
+        item.check_folder(self.name)
+
     @staticmethod
     def add_children(parent: "TreeItem", document: dict):
-        TreeItem.load(document, parent, consulted=True)
+        parent.load(document, parent, consulted=True)
 
     def data(self, index: Union[QModelIndex, QPersistentModelIndex], role: int = ...) -> Any:
         """Override from QAbstractItemModel
@@ -117,7 +134,7 @@ class JsonModel(QAbstractItemModel):
             return QModelIndex()
 
         child_item = index.internalPointer()
-        parent_item = child_item.parent()
+        parent_item = child_item.parent
 
         if parent_item == self.root_item:
             return QModelIndex()
@@ -175,134 +192,67 @@ class JsonModel(QAbstractItemModel):
 class TreeItem:
     """A Json item corresponding to a line in QTreeView"""
 
-    def __init__(self, parent: 'TreeItem' = None, key='', consulted=False, unit='', description='',
+    def __init__(self, parent: 'TreeItem' = None, key='', unit='', description='',
                  data_type='', dimension='', value_type='folder'):
-        self._parent = parent
-        self._key = key
-        self._path = ''
-        self._consulted = consulted
-        self._unit = unit
-        self._description = description
-        self._dimension = dimension
-        self._data_type = data_type
-        self._value_type = value_type
-        self._children = []
-        self.nested_children = []
-        self.SizeHintRole = 100
+        self.parent = parent
+        self.key = key
+        self.path = ''
+        self.unit = unit
+        self.description = description
+        self.dimension = dimension
+        self.data_type = data_type
+        self.value_type = value_type
+        self.children = []
 
     def is_folder(self):
         return self.value_type == "folder" or self.value_type == "nested_variable"
 
     def append_child(self, item: "TreeItem"):
         """Add item as a child"""
-        self._children.append(item)
+        self.children.append(item)
 
     def child(self, row: int) -> "TreeItem":
         """Return the child of the current item from the given row"""
-        return self._children[row]
+        return self.children[row]
 
     def has_child(self) -> bool:
         """Return if the current item has children or not"""
-        return bool(self._children)
+        return bool(self.children)
 
     def parent(self) -> "TreeItem":
         """Return the parent of the current item"""
-        return self._parent
+        return self.parent
 
     def child_count(self) -> int:
         """Return the number of children of the current item"""
-        return len(self._children)
+        return len(self.children)
 
     def row(self) -> int:
         """Return the row where the current item occupies in the parent"""
-        return self._parent._children.index(self) if self._parent else 0
+        return self.parent.children.index(self) if self.parent else 0
 
-    @property
-    def key(self) -> str:
-        """Return the key name"""
-        return self._key
+    def get_dimension_str(self):
+        pass
 
-    @key.setter
-    def key(self, key: str):
-        """Set key name of the current item"""
-        self._key = key
+    def get_dimension_str_0(self):
+        pass
 
-    @property
-    def data_type(self) -> str:
-        return self._data_type
+    def load(self, value: Union[List, Dict], parent: "TreeItem" = None,
+             path: object = None, consulted: object = False) -> "TreeItem":
+        pass
 
-    @data_type.setter
-    def data_type(self, data_type: str):
-        self._data_type = data_type
+    def check_folder(self, data_source):
+        pass
 
-    @property
-    def path(self) -> str:
-        """Return the path"""
-        return self._path
 
-    @path.setter
-    def path(self, path: str):
-        """Set path of the current item"""
-        self._path = path
+class UdaTreeItem(TreeItem):
+    """A Json item corresponding to a line in QTreeView"""
 
-    @property
-    def children(self) -> list:
-        """Return the children"""
-        return self._children
-
-    @property
-    def unit(self) -> str:
-        """Return the unit of the current item"""
-        return self._unit
-
-    @unit.setter
-    def unit(self, unit: str):
-        """Set unit of the current item"""
-        self._unit = unit
-
-    # @property
-    # def value(self) -> str:
-    #     """Return the value name of the current item"""
-    #     return self._value
-    #
-    # @value.setter
-    # def value(self, value: str):
-    #     """Set value name of the current item"""
-    #     self._value = value
-
-    @property
-    def value_type(self):
-        return self._value_type
-
-    @value_type.setter
-    def value_type(self, value_type):
-        self._value_type = value_type
-
-    @property
-    def consulted(self):
-        """Return if the item is consulted."""
-        return self._consulted
-
-    @consulted.setter
-    def consulted(self, consulted):
-        """Set if item is consulted or not"""
-        self._consulted = consulted
-
-    @property
-    def description(self):
-        return self._description
-
-    @description.setter
-    def description(self, description):
-        self._description = description
-
-    @property
-    def dimension(self):
-        return self._dimension
-
-    @dimension.setter
-    def dimension(self, dimension):
-        self._dimension = dimension
+    def __init__(self, parent: 'UdaTreeItem' = None, key='', consulted=False, unit='', description='', data_type='',
+                 dimension='', value_type='folder'):
+        super().__init__(parent, key, unit, description, data_type, dimension, value_type)
+        self.nested_children = []
+        self.consulted = consulted
 
     def get_dimension_str(self):
         if self.dimension == [1]:
@@ -317,15 +267,15 @@ class TreeItem:
             return '[' + ']['.join('0' for _ in self.dimension) + ']'
 
     @classmethod
-    def load(cls, value: Union[List, Dict], parent: "TreeItem" = None, path: object = None,
-             consulted: object = False) -> "TreeItem":
+    def load(cls, value: Union[List, Dict], parent: "UdaTreeItem" = None,
+             path: object = None, consulted: object = False) -> "UdaTreeItem":
         if path is None:
             path = []
         if consulted:
             root_item = parent
-            root_item._consulted = consulted
+            root_item.consulted = consulted
         else:
-            root_item = TreeItem(parent)
+            root_item = UdaTreeItem(parent)
 
         if not isinstance(value, dict):
             return root_item
@@ -352,13 +302,13 @@ class TreeItem:
         return [int(part) if part.isdigit() else part for part in parts]
 
     @classmethod
-    def load_nested_child(cls, value: Union[List, Dict], parent: "TreeItem" = None, path: object = None,
-                          consulted: object = False) -> "TreeItem":
+    def load_nested_child(cls, value: Union[List, Dict], parent: "UdaTreeItem" = None, path: object = None,
+                          consulted: object = False) -> "UdaTreeItem":
         if path is None:
             path = []
         if consulted:
             root_item = parent
-            root_item._consulted = consulted
+            root_item.consulted = consulted
         else:
             root_item = TreeItem(parent)
             root_item.path = f"{parent.path}/{path[-1]}"
@@ -391,4 +341,104 @@ class TreeItem:
                 root_item.append_child(child)
             path.pop()
 
+        return root_item
+
+    @staticmethod
+    def group_common_parts(data):
+        common_parts = {}
+
+        for key, value in data.items():
+            sub_data = common_parts
+            parts = key.split('/')
+
+            for parte in parts[:-1]:
+                if parte not in sub_data:
+                    sub_data[parte] = {}
+
+                sub_data = sub_data[parte]
+
+            sub_data[parts[-1]] = value
+
+        return common_parts
+
+    def check_folder(self, data_source_name):
+        self.consulted = True
+        for child in self.children:
+            if child.has_child() or child.consulted:
+                continue
+            data = AppDataAccess.da.get_var_fields(data_source_name=data_source_name, variable=child.key)
+
+            if data:
+                if set(data.keys()) == {'status_id', 'val', 'secs', 'severity_id', 'nanosecs'}:
+                    child.data_type = data['val']['type']
+                    child.unit = data['val']['units']
+                    child.description = data['val']['description']
+                    child.dimension = data['val']['dimensionality']
+                elif list(data.keys()) == ['value']:
+                    child.data_type = data['value']['type']
+                    child.unit = data['value']['units']
+                    child.description = data['value']['description']
+                    child.dimension = data['value']['dimensionality']
+                else:
+                    child.value_type = 'nested_variable'
+                    UdaTreeItem.load_nested_child(self.group_common_parts(data), child, consulted=True)
+
+                    for key, val in data.items():
+                        child.append_child(UdaTreeItem(parent=child,
+                                                       key=f'{child.key}/{key}',
+                                                       consulted=True,
+                                                       unit=val['units'],
+                                                       description=val['description'],
+                                                       dimension=val['dimensionality'],
+                                                       data_type=val['type'],
+                                                       value_type='variable'
+                                                       ))
+
+
+class ImasTreeItem(TreeItem):
+    """A Json item corresponding to a line in QTreeView"""
+
+    def __init__(self, parent: 'ImasTreeItem' = None, key='', unit='', description='', data_type='',
+                 dimension='', value_type='folder'):
+        super().__init__(parent, key, unit, description, data_type, dimension, value_type)
+
+    def get_dimension_str(self):
+        if self.dimension == [1]:
+            return ''
+        else:
+            return '[' + ']['.join(str(v) for v in self.dimension) + ']'
+
+    def get_dimension_str_0(self):
+        if self.dimension == [1]:
+            return ''
+        else:
+            return '[' + ']['.join('0' for _ in self.dimension) + ']'
+
+    @classmethod
+    def load(cls, value: Union[List, Dict], parent: "ImasTreeItem" = None, path: object = None,
+             consulted: object = False) -> "ImasTreeItem":
+        if path is None:
+            path = []
+
+        root_item = ImasTreeItem(parent)
+        if not isinstance(value, dict):
+            return root_item
+
+        for key, val in value.items():
+            if key not in imasAccess.CBS_ATTR:
+                path.append(key)
+                child = cls.load(val, root_item, path)
+                child.key = key
+                child.path = '/'.join(path)
+                root_item.append_child(child)
+                path.pop()
+            else:
+                if key == 'documentation':
+                    root_item.description = val
+                if key == 'data_type':
+                    root_item.data_type = val
+                if key == 'units':
+                    root_item.unit = val
+        if all(v in imasAccess.CBS_ATTR for v in value.keys()):
+            root_item.value_type = "variable"
         return root_item
