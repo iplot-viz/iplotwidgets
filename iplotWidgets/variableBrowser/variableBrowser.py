@@ -59,9 +59,10 @@ class VariableBrowser(QWidget):
         self.progress_bar.setMaximum(100)
         self.progress_bar.hide()
 
-        self.data_sources = AppDataAccess.da.get_connected_data_sources()
+        self.data_sources = AppDataAccess.da.get_connected_data_sources2()
         self.sources_combo = QComboBox()
-        self.sources_combo.addItems(self.data_sources)
+        for ds in self.data_sources:
+            self.sources_combo.addItem(ds.name, userData=ds)
         self.sources_combo.currentTextChanged.connect(self.change_model)
 
         top_h_layout = QHBoxLayout()
@@ -93,7 +94,7 @@ class VariableBrowser(QWidget):
         self.finish_btn.clicked.connect(self.finish)
 
     def get_current_source(self) -> str:
-        return self.sources_combo.currentText()
+        return self.sources_combo.currentData()
 
     def change_model(self):
         new_source = self.get_current_source()
