@@ -6,19 +6,21 @@ import re
 
 from iplotDataAccess import imasAccess
 from iplotDataAccess.appDataAccess import AppDataAccess
+from iplotDataAccess.dataAccess import DataSource
+from iplotDataAccess.dataSourceConfig import DS_CODAC_TYPE, DS_IMAS_TYPE
 from iplotWidgets.variableBrowser.tools.converters import parse_groups_to_dict, parse_vars_to_dict
 
 
 class JsonModel(QAbstractItemModel):
     """ An editable model of Json data """
 
-    def __init__(self, name: str, dtype: str, parent: QObject = None):
+    def __init__(self, data_source: DataSource, parent: QObject = None, search = False):
         super().__init__(parent)
 
         self.root_item = TreeItem()
-        self.name = name
-        self.dtype = dtype
-        self.load()
+        self.data_source = data_source
+        self.search = search
+        self.clear()
 
     def supportedDropActions(self):
         return Qt.CopyAction | Qt.MoveAction
@@ -37,43 +39,48 @@ class JsonModel(QAbstractItemModel):
 
     def clear(self):
         """ Clear data from the model """
-        self.load({})
+        self.load_document({})
 
         return None
 
     def load(self):
-        """Load model from a nested dictionary returned by json.loads()
+        """Load model from zero
+        """
+
+        document = AppDataAccess.da.get_cbs_list(data_source_name=self.data_source.name)
+        if self.data_source.dtype == DS_CODAC_TYPE:
+            document = parse_groups_to_dict(document)
+
+        self.load_document(document)
+
+    def load_document(self, document: dict):
+        """Load model from a dictionary
         """
 
         self.beginResetModel()
 
-        lines = AppDataAccess.da.get_cbs_list(data_source_name=self.name)
-        if self.dtype == "IMAS_UDA":
-            self.root_item = ImasTreeItem.load(lines)
-        elif self.dtype == "CODAC_UDA":
-            document = parse_groups_to_dict(lines)
+        if self.data_source.dtype == DS_IMAS_TYPE:
+            self.root_item = ImasTreeItem.load(document)
+        elif self.data_source.dtype == DS_CODAC_TYPE:
             self.root_item = UdaTreeItem.load(document)
 
-        self.root_item.check_folder(self.name)
+        self.root_item.check_folder(self.data_source.name)
         self.endResetModel()
 
-        return True
-
     def expand(self, item):
-        if self.dtype != 'CODAC_UDA':
+        if self.data_source.dtype != DS_CODAC_TYPE:
             return
-        path = item.path
-        pattern = f'{path}:.*'
-        data = AppDataAccess.da.get_var_list(data_source_name=self.name, pattern=pattern)
-        if data:
-            data_parsed = parse_vars_to_dict(data, path)
-            self.add_children(parent=item, document=data_parsed)
+        if item.consulted:
+            return
+        if not self.search:
+            path = item.path
+            pattern = f'{path}:.*'
+            data = AppDataAccess.da.get_var_list(data_source_name=self.data_source.name, pattern=pattern)
+            if data:
+                data_parsed = parse_vars_to_dict(data, path)
+                item.load(data_parsed, item, consulted=True)
 
-        item.check_folder(self.name)
-
-    @staticmethod
-    def add_children(parent: "TreeItem", document: dict):
-        parent.load(document, parent, consulted=True)
+        item.check_folder(self.data_source.name)
 
     def data(self, index: Union[QModelIndex, QPersistentModelIndex], role: int = ...) -> Any:
         """Override from QAbstractItemModel
@@ -296,6 +303,7 @@ class UdaTreeItem(TreeItem):
 
         return root_item
 
+
     @staticmethod
     def extract_parts(element):
         parts = re.findall(r'(\d+|\D+)', element)
@@ -368,31 +376,33 @@ class UdaTreeItem(TreeItem):
                 continue
             data = AppDataAccess.da.get_var_fields(data_source_name=data_source_name, variable=child.key)
 
-            if data:
-                if set(data.keys()) == {'status_id', 'val', 'secs', 'severity_id', 'nanosecs'}:
-                    child.data_type = data['val']['type']
-                    child.unit = data['val']['units']
-                    child.description = data['val']['description']
-                    child.dimension = data['val']['dimensionality']
-                elif list(data.keys()) == ['value']:
-                    child.data_type = data['value']['type']
-                    child.unit = data['value']['units']
-                    child.description = data['value']['description']
-                    child.dimension = data['value']['dimensionality']
-                else:
-                    child.value_type = 'nested_variable'
-                    UdaTreeItem.load_nested_child(self.group_common_parts(data), child, consulted=True)
+            if not data:
+                continue
 
-                    for key, val in data.items():
-                        child.append_child(UdaTreeItem(parent=child,
-                                                       key=f'{child.key}/{key}',
-                                                       consulted=True,
-                                                       unit=val['units'],
-                                                       description=val['description'],
-                                                       dimension=val['dimensionality'],
-                                                       data_type=val['type'],
-                                                       value_type='variable'
-                                                       ))
+            if set(data.keys()) == {'status_id', 'val', 'secs', 'severity_id', 'nanosecs'}:
+                child.data_type = data['val']['type']
+                child.unit = data['val']['units']
+                child.description = data['val']['description']
+                child.dimension = data['val']['dimensionality']
+            elif list(data.keys()) == ['value']:
+                child.data_type = data['value']['type']
+                child.unit = data['value']['units']
+                child.description = data['value']['description']
+                child.dimension = data['value']['dimensionality']
+            else:
+                child.value_type = 'nested_variable'
+                UdaTreeItem.load_nested_child(self.group_common_parts(data), child, consulted=True)
+
+                for key, val in data.items():
+                    child.append_child(UdaTreeItem(parent=child,
+                                                   key=f'{child.key}/{key}',
+                                                   consulted=True,
+                                                   unit=val['units'],
+                                                   description=val['description'],
+                                                   dimension=val['dimensionality'],
+                                                   data_type=val['type'],
+                                                   value_type='variable'
+                                                   ))
 
 
 class ImasTreeItem(TreeItem):

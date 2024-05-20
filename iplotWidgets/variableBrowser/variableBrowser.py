@@ -4,6 +4,8 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox, QHBoxLayout, QVBoxLayout, \
     QProgressBar
 from PySide6.QtCore import Qt, Signal
+
+from iplotDataAccess.dataAccess import DataSource
 from iplotWidgets.variableBrowser.variableTree import VariableTree
 from iplotWidgets.variableBrowser.variableTable import VariableTable
 from iplotWidgets.variableBrowser.tools.converters import parse
@@ -93,7 +95,7 @@ class VariableBrowser(QWidget):
 
         self.finish_btn.clicked.connect(self.finish)
 
-    def get_current_source(self) -> str:
+    def get_current_source(self) -> DataSource:
         return self.sources_combo.currentData()
 
     def change_model(self):
@@ -103,7 +105,7 @@ class VariableBrowser(QWidget):
     def update_display(self):
         text = self.searchbar.text()
         if len(text) < 3:
-            self.tree.set_model(self.get_current_source())
+            self.tree.set_model(self.get_current_source().name)
 
     def search(self):
         text = self.searchbar.text()
@@ -127,18 +129,20 @@ class VariableBrowser(QWidget):
             pattern = f'.*{text}'
         else:
             pattern = ''
-        data_source_name = self.get_current_source()
-        found = AppDataAccess.da.get_var_list(data_source_name=data_source_name, pattern=pattern)
+        data_source = self.get_current_source()
+        self.tree.models['SEARCH'].ds_name = data_source.name
+        self.tree.models['SEARCH'].dtype = data_source.dtype
+        found = AppDataAccess.da.get_var_list(data_source_name=data_source.name, pattern=pattern)
 
         if found:
             self.progress_bar.setFormat("Loading variables into the model")
             self.progress_bar.setValue(50)
             new_dict = parse(found)
-            self.tree.models['SEARCH'].load(new_dict)
+            self.tree.models['SEARCH'].load_document(new_dict)
             time.sleep(0.4)
             self.progress_bar.setFormat("Checking the information of the root variables")
             self.progress_bar.setValue(75)
-            self.tree.check_folder(self.tree.model().root_item, data_source_name)
+            # self.tree.check_folder(self.tree.model().root_item, data_source)
             time.sleep(0.4)
         else:
             self.progress_bar.setStyleSheet("QProgressBar::chunk {background-color: #FF6666;}")
@@ -146,7 +150,7 @@ class VariableBrowser(QWidget):
             self.progress_bar.setValue(50)
             self.progress_bar.setStyleSheet("")
             time.sleep(2)
-            self.tree.models['SEARCH'].load({})
+            self.tree.models['SEARCH'].load_document({})
 
         # Search done
         self.search_btn.setEnabled(True)

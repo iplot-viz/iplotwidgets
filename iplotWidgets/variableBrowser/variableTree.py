@@ -1,16 +1,14 @@
 from PySide6.QtGui import QCursor
-from PySide6.QtCore import QFileInfo, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QTreeView, QToolTip, QAbstractItemView
 from iplotDataAccess.appDataAccess import AppDataAccess
-from iplotWidgets.variableBrowser.models.mtJsonModel import JsonModel, UdaTreeItem
-from iplotWidgets.variableBrowser.tools.converters import parse_groups_to_dict, parse_vars_to_dict
-from pathlib import Path
+from iplotWidgets.variableBrowser.models.mtJsonModel import JsonModel
 
 
 class VariableTree(QTreeView):
     def __init__(self):
         super().__init__()
-        self.models = {'SEARCH': JsonModel(name='SEARCH', dtype='SEARCH')}
+        self.models = {'SEARCH': JsonModel(data_source=AppDataAccess.da.defaultds, search=True)}
         self.setSelectionMode(self.selectionMode().ExtendedSelection)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.open_menu)
@@ -27,27 +25,29 @@ class VariableTree(QTreeView):
         self.load_model(AppDataAccess.da.defaultds)
         self.dragged_item = None
 
+    def get_model(self) -> JsonModel:
+        return self.model()
+
     def open_menu(self, position):
         index = self.indexAt(position).internalPointer()
         if index.value_type == "nested_variable":
             temp = index.children
             index.children = index.nested_children
             index.nested_children = temp
-            self.model().layoutChanged.emit()
+            self.get_model().layoutChanged.emit()
             del temp
 
     def expand(self, index):
-        data_source_name = self.parent().get_current_source()
-        self.model().expand(index.internalPointer())
-        self.model().layoutChanged.emit()
+        self.get_model().expand(index.internalPointer())
+        self.get_model().layoutChanged.emit()
 
     def load_model(self, data_source):
-        data_source_name = data_source.name
-        data_source_type = data_source.dtype
-        if data_source_name not in self.models:
-            self.models[data_source_name] = JsonModel(name=data_source_name, dtype=data_source_type)
+        ds_name = data_source.name
+        if ds_name not in self.models:
+            self.models[ds_name] = JsonModel(data_source=data_source)
+            self.models[ds_name].load()
 
-        self.setModel(self.models[data_source_name])
+        self.setModel(self.models[ds_name])
 
     def set_model(self, data_source_name):
         if data_source_name in self.models:
