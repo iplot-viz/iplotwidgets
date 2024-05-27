@@ -41,7 +41,11 @@ class TableModel(QAbstractTableModel):
 
     def add_row(self, new_values: List):
         new_dataframe = pd.DataFrame([new_values], columns=['DS', 'Variable'])
-        self.dataframe = pd.concat([self.dataframe, new_dataframe])
+        self.dataframe = pd.concat([self.dataframe, new_dataframe]).reset_index(drop=True)
+        self.layoutChanged.emit()
+
+    def remove_rows(self, rows: list):
+        self.dataframe = self.dataframe.drop(rows).reset_index(drop=True)
         self.layoutChanged.emit()
 
     def clear_model(self):
@@ -56,8 +60,6 @@ class VariableTable(QTableView):
     def __init__(self):
         QTableView.__init__(self)
         self.setSelectionMode(self.selectionMode().ExtendedSelection)
-        self.model_table = QStandardItemModel()
-        self.setModel(self.model_table)
         self.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         self.horizontalHeader().setStretchLastSection(True)
@@ -70,9 +72,8 @@ class VariableTable(QTableView):
 
     def remove_from_table(self):
         index = self.selectedIndexes()
-        rows = [ix.row() for ix in index]
-        for row in reversed(rows):
-            self.model_table.removeRow(row)
+        rows = list({ix.row() for ix in index})
+        self.model.remove_rows(rows)
         self.clearSelection()
 
     def clear_table(self):

@@ -6,9 +6,10 @@ from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox
 from PySide6.QtCore import Qt, Signal
 
 from iplotDataAccess.dataAccess import DataSource
+from iplotDataAccess.dataSourceConfig import DS_CODAC_TYPE
 from iplotWidgets.variableBrowser.variableTree import VariableTree
 from iplotWidgets.variableBrowser.variableTable import VariableTable
-from iplotWidgets.variableBrowser.tools.converters import parse
+from iplotWidgets.variableBrowser.tools.converters import parse, parse_groups_to_dict
 from iplotLogging import setupLogger as setupLog
 from iplotDataAccess.appDataAccess import AppDataAccess
 
@@ -65,6 +66,7 @@ class VariableBrowser(QWidget):
         self.sources_combo = QComboBox()
         for ds in self.data_sources:
             self.sources_combo.addItem(ds.name, userData=ds)
+        self.sources_combo.setCurrentText(AppDataAccess.da.get_default_ds_name())
         self.sources_combo.currentTextChanged.connect(self.change_model)
 
         top_h_layout = QHBoxLayout()
@@ -114,7 +116,7 @@ class VariableBrowser(QWidget):
         self.search_btn.setEnabled(False)
         self.progress_bar.show()
         self.progress_bar.setFormat("Retrieving the variable list from the server")
-        self.progress_bar.setValue(25)
+        self.progress_bar.setValue(40)
         time.sleep(0.4)
 
         self.tree.set_model('SEARCH')
@@ -130,24 +132,20 @@ class VariableBrowser(QWidget):
         else:
             pattern = ''
         data_source = self.get_current_source()
-        self.tree.models['SEARCH'].ds_name = data_source.name
-        self.tree.models['SEARCH'].dtype = data_source.dtype
+        self.tree.models['SEARCH'].data_source = data_source
         found = AppDataAccess.da.get_var_list(data_source_name=data_source.name, pattern=pattern)
 
         if found:
             self.progress_bar.setFormat("Loading variables into the model")
-            self.progress_bar.setValue(50)
-            new_dict = parse(found)
-            self.tree.models['SEARCH'].load_document(new_dict)
-            time.sleep(0.4)
-            self.progress_bar.setFormat("Checking the information of the root variables")
-            self.progress_bar.setValue(75)
-            # self.tree.check_folder(self.tree.model().root_item, data_source)
+            self.progress_bar.setValue(80)
+            if data_source.dtype == DS_CODAC_TYPE:
+                found = parse(found)
+            self.tree.models['SEARCH'].load_document(found)
             time.sleep(0.4)
         else:
             self.progress_bar.setStyleSheet("QProgressBar::chunk {background-color: #FF6666;}")
             self.progress_bar.setFormat("Empty model")
-            self.progress_bar.setValue(50)
+            self.progress_bar.setValue(80)
             self.progress_bar.setStyleSheet("")
             time.sleep(2)
             self.tree.models['SEARCH'].load_document({})
@@ -164,10 +162,9 @@ class VariableBrowser(QWidget):
         data_list = self.tableView.get_variables_list()
         indexes = [ix.internalPointer() for ix in indexes]
         for ix in indexes:
-
-            value = ix.key + ix.get_dimension_str_0()
-            if not ix.has_child() and [self.get_current_source(), value] not in data_list:
-                self.tableView.model.add_row([self.get_current_source(), value])
+            value = ix.get_table_variable_str()
+            if not ix.has_child() and [self.get_current_source().name, value] not in data_list:
+                self.tableView.model.add_row([self.get_current_source().name, value])
         self.tree.clearSelection()
 
     def keyPressEvent(self, event):
@@ -186,27 +183,19 @@ class VariableBrowser(QWidget):
             self.refresh_btn.setEnabled(False)  # Disable the button while refreshing
             self.progress_bar.show()
             self.progress_bar.setFormat("Retrieving the variable list from the server")
-            self.progress_bar.setValue(25)
+            self.progress_bar.setValue(40)
             time.sleep(0.4)
 
-            data_source_name = self.get_current_source()
-            lines = AppDataAccess.da.get_cbs_list(data_source_name=data_source_name)
+            data_source = self.get_current_source()
+            document = AppDataAccess.da.get_cbs_list(data_source_name=data_source.name)
 
             self.progress_bar.setFormat("Loading variables into the model")
-            self.progress_bar.setValue(50)
+            self.progress_bar.setValue(80)
             time.sleep(0.4)
-            if lines:
-                refresh_dict = parse(lines)
-                self.tree.models[data_source_name].load(refresh_dict)
-            else:
-                self.tree.models[data_source_name].load({})
+            if data_source.dtype == DS_CODAC_TYPE:
+                document = parse_groups_to_dict(document)
+            self.tree.models[data_source.name].load_document(document)
 
-            self.progress_bar.setFormat("Checking the information of the root variables")
-            self.progress_bar.setValue(75)
-            time.sleep(0.4)
-            self.tree.check_folder(self.tree.models[data_source_name].root_item, data_source_name)
-
-            # Refresh done
             self.refresh_btn.setEnabled(True)
             self.progress_bar.setFormat("Finished")
             self.progress_bar.setValue(100)

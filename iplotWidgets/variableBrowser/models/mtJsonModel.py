@@ -14,12 +14,12 @@ from iplotWidgets.variableBrowser.tools.converters import parse_groups_to_dict, 
 class JsonModel(QAbstractItemModel):
     """ An editable model of Json data """
 
-    def __init__(self, data_source: DataSource, parent: QObject = None, search = False):
+    def __init__(self, data_source: DataSource, parent: QObject = None, search=False):
         super().__init__(parent)
 
         self.root_item = TreeItem()
         self.data_source = data_source
-        self.search = search
+        self.search: bool = search
         self.clear()
 
     def supportedDropActions(self):
@@ -62,7 +62,7 @@ class JsonModel(QAbstractItemModel):
         if self.data_source.dtype == DS_IMAS_TYPE:
             self.root_item = ImasTreeItem.load(document)
         elif self.data_source.dtype == DS_CODAC_TYPE:
-            self.root_item = UdaTreeItem.load(document)
+            self.root_item = UdaTreeItem.load(document, UdaTreeItem(data_type="folder"), consulted=True)
 
         self.root_item.check_folder(self.data_source.name)
         self.endResetModel()
@@ -91,13 +91,13 @@ class JsonModel(QAbstractItemModel):
         if not index.isValid():
             return None
 
-        item = index.internalPointer()
+        item = index.internalPointer()  # type: TreeItem
 
         if role == Qt.DisplayRole:
             if item.is_folder():
-                return item.key
+                return item.get_folder_str()
             else:
-                return f'{item.key} ({item.unit}) {item.data_type}{item.get_dimension_str()}'
+                return item.get_tree_variable_str()
         elif role == Qt.EditRole:
             if index.column() == 1:
                 return item.key
@@ -105,9 +105,9 @@ class JsonModel(QAbstractItemModel):
             "giving size hint"
             return QSize(1000, 20)
         elif role == Qt.DecorationRole:
-            if item.value_type == "folder" or item.value_type == "nested_variable":
+            if item.is_folder():
                 return QtGui.QIcon(QtGui.QPixmap("iplotWidgets/iplotWidgets/variableBrowser/icons/folder.svg"))
-            elif item.value_type == "variable":
+            else:
                 return QtGui.QIcon(QtGui.QPixmap("iplotWidgets/iplotWidgets/variableBrowser/icons/variable.svg"))
 
     def index(self, row: int, column: int, parent=QModelIndex()) -> QModelIndex:
@@ -199,8 +199,7 @@ class JsonModel(QAbstractItemModel):
 class TreeItem:
     """A Json item corresponding to a line in QTreeView"""
 
-    def __init__(self, parent: 'TreeItem' = None, key='', unit='', description='',
-                 data_type='', dimension='', value_type='folder'):
+    def __init__(self, parent: 'TreeItem' = None, key='', unit='', description='', data_type='', dimension=''):
         self.parent = parent
         self.key = key
         self.path = ''
@@ -208,11 +207,10 @@ class TreeItem:
         self.description = description
         self.dimension = dimension
         self.data_type = data_type
-        self.value_type = value_type
         self.children = []
 
-    def is_folder(self):
-        return self.value_type == "folder" or self.value_type == "nested_variable"
+    def is_folder(self) -> bool:
+        pass
 
     def append_child(self, item: "TreeItem"):
         """Add item as a child"""
@@ -238,12 +236,6 @@ class TreeItem:
         """Return the row where the current item occupies in the parent"""
         return self.parent.children.index(self) if self.parent else 0
 
-    def get_dimension_str(self):
-        pass
-
-    def get_dimension_str_0(self):
-        pass
-
     def load(self, value: Union[List, Dict], parent: "TreeItem" = None,
              path: object = None, consulted: object = False) -> "TreeItem":
         pass
@@ -251,15 +243,27 @@ class TreeItem:
     def check_folder(self, data_source):
         pass
 
+    def get_folder_str(self) -> str:
+        pass
+
+    def get_tree_variable_str(self) -> str:
+        pass
+
+    def get_table_variable_str(self) -> str:
+        pass
+
 
 class UdaTreeItem(TreeItem):
     """A Json item corresponding to a line in QTreeView"""
 
     def __init__(self, parent: 'UdaTreeItem' = None, key='', consulted=False, unit='', description='', data_type='',
-                 dimension='', value_type='folder'):
-        super().__init__(parent, key, unit, description, data_type, dimension, value_type)
+                 dimension=''):
+        super().__init__(parent, key, unit, description, data_type, dimension)
         self.nested_children = []
         self.consulted = consulted
+
+    def is_folder(self):
+        return self.data_type == "folder" or self.data_type == "nested_variable"
 
     def get_dimension_str(self):
         if self.dimension == [1]:
@@ -272,6 +276,15 @@ class UdaTreeItem(TreeItem):
             return ''
         else:
             return '[' + ']['.join('0' for _ in self.dimension) + ']'
+
+    def get_table_variable_str(self) -> str:
+        return f'{self.key}{self.get_dimension_str_0()}'
+
+    def get_tree_variable_str(self):
+        return f'{self.key} ({self.unit}) {self.data_type}{self.get_dimension_str()}'
+
+    def get_folder_str(self):
+        return self.key
 
     @classmethod
     def load(cls, value: Union[List, Dict], parent: "UdaTreeItem" = None,
@@ -293,16 +306,14 @@ class UdaTreeItem(TreeItem):
             child = cls.load(val, root_item, path)
             if val == '':
                 child.key = key[:-2]
-                child.value_type = "variable"
             else:
                 child.key = key
-                child.value_type = "folder"
+                child.data_type = "folder"
             child.path = '-'.join(path).replace('?V', '')
             root_item.append_child(child)
             path.pop()
 
         return root_item
-
 
     @staticmethod
     def extract_parts(element):
@@ -337,12 +348,11 @@ class UdaTreeItem(TreeItem):
                 child.description = val['description']
                 child.key = f"{root_item.path}/{path[-1]}"
                 child.path = key
-                child.value_type = "variable"
                 child.consulted = True
             else:
                 child = cls.load_nested_child(val, root_item, path)
                 child.key = key
-                child.value_type = "folder"
+                child.data_type = "folder"
             if consulted:
                 root_item.nested_children.append(child)
             else:
@@ -390,7 +400,7 @@ class UdaTreeItem(TreeItem):
                 child.description = data['value']['description']
                 child.dimension = data['value']['dimensionality']
             else:
-                child.value_type = 'nested_variable'
+                child.data_type = 'nested_variable'
                 UdaTreeItem.load_nested_child(self.group_common_parts(data), child, consulted=True)
 
                 for key, val in data.items():
@@ -400,55 +410,67 @@ class UdaTreeItem(TreeItem):
                                                    unit=val['units'],
                                                    description=val['description'],
                                                    dimension=val['dimensionality'],
-                                                   data_type=val['type'],
-                                                   value_type='variable'
+                                                   data_type=val['type']
                                                    ))
 
 
 class ImasTreeItem(TreeItem):
     """A Json item corresponding to a line in QTreeView"""
 
-    def __init__(self, parent: 'ImasTreeItem' = None, key='', unit='', description='', data_type='',
-                 dimension='', value_type='folder'):
-        super().__init__(parent, key, unit, description, data_type, dimension, value_type)
+    def __init__(self, parent: 'ImasTreeItem' = None, key='', unit='', description='', data_type='', dimension='0'):
+        super().__init__(parent, key, unit, description, data_type, dimension)
+        self.struct = 0
 
-    def get_dimension_str(self):
-        if self.dimension == [1]:
-            return ''
-        else:
-            return '[' + ']['.join(str(v) for v in self.dimension) + ']'
+    def is_folder(self):
+        return self.data_type == "structure" or self.data_type == "struct_array"
 
-    def get_dimension_str_0(self):
-        if self.dimension == [1]:
-            return ''
-        else:
-            return '[' + ']['.join('0' for _ in self.dimension) + ']'
+    def get_tree_variable_str(self):
+        return f'{self.key} ({self.data_type})'
+
+    def get_table_variable_str(self):
+        begin = ""
+        if self.parent and self.parent.key != "":
+            begin = self.parent.get_table_variable_str() + "/"
+        dimension = '[0' + ",0" * (int(self.dimension) - 1) + "]" if self.dimension != '0' else ''
+        struct = '[0]' if self.struct != 0 else ""
+        result = begin + self.key + dimension + struct
+
+        return result
+
+    def get_folder_str(self):
+        struct = f"(i{self.struct})" if self.struct > 0 else ""
+        return f'{self.key}{struct}'
 
     @classmethod
     def load(cls, value: Union[List, Dict], parent: "ImasTreeItem" = None, path: object = None,
              consulted: object = False) -> "ImasTreeItem":
         if path is None:
             path = []
-
         root_item = ImasTreeItem(parent)
-        if not isinstance(value, dict):
+        if not isinstance(value, dict) or value == {}:
             return root_item
 
+        if 'documentation' in value:
+            root_item.description = value['documentation']
+        if 'data_type' in value:
+            root_item.data_type = value['data_type']
+            if value['data_type'] == 'struct_array':
+                root_item.struct = parent.struct + 1
+        else:
+            root_item.data_type = "structure"
+        if 'units' in value:
+            root_item.unit = value['units']
+        if 'dimension' in value:
+            root_item.dimension = value['dimension']
+
         for key, val in value.items():
-            if key not in imasAccess.CBS_ATTR:
-                path.append(key)
-                child = cls.load(val, root_item, path)
-                child.key = key
-                child.path = '/'.join(path)
-                root_item.append_child(child)
-                path.pop()
-            else:
-                if key == 'documentation':
-                    root_item.description = val
-                if key == 'data_type':
-                    root_item.data_type = val
-                if key == 'units':
-                    root_item.unit = val
-        if all(v in imasAccess.CBS_ATTR for v in value.keys()):
-            root_item.value_type = "variable"
+            if key in imasAccess.CBS_ATTR:
+                continue
+            path.append(key)
+            child = cls.load(val, root_item, path)
+            child.key = key
+            child.path = '/'.join(path)
+            root_item.append_child(child)
+            path.pop()
+
         return root_item

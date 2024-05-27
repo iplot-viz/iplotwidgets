@@ -30,7 +30,7 @@ class VariableTree(QTreeView):
 
     def open_menu(self, position):
         index = self.indexAt(position).internalPointer()
-        if index.value_type == "nested_variable":
+        if index.data_type == "nested_variable":
             temp = index.children
             index.children = index.nested_children
             index.nested_children = temp
