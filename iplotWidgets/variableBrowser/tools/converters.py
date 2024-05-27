@@ -46,3 +46,21 @@ def parse(lines) -> dict:
                 cur_dict = cur_dict.setdefault(list_line[ix], {})
 
     return result
+
+
+def parse_pulses_to_dict(lines: List) -> dict:
+    result = dict()
+    for line in lines:
+        cur_dict = result
+        list_line = line.replace('/', ':').split(':')
+        for var in list_line:
+            if var.isdigit():
+                cur_dict = cur_dict.setdefault(line, '')
+            elif '-' in var:
+                sub_var = var.split('-')
+                for variable in sub_var:
+                    cur_dict = cur_dict.setdefault(variable, {})
+            else:
+                cur_dict = cur_dict.setdefault(var, {})
+
+    return result
