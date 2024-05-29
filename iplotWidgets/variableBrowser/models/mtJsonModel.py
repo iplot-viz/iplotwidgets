@@ -304,10 +304,7 @@ class UdaTreeItem(TreeItem):
             path.append(key)
             child = cls.load(val, root_item, path)
             if val == '':
-                if '/' in key:
-                    child.key = key
-                else:
-                    child.key = key[:-2]
+                child.key = key[:-2]
             else:
                 child.key = key
                 child.data_type = "folder"
@@ -472,48 +469,6 @@ class ImasTreeItem(TreeItem):
             child = cls.load(val, root_item, path)
             child.key = key
             child.path = '/'.join(path)
-            root_item.append_child(child)
-            path.pop()
-
-        return root_item
-
-
-class TreePulseItem(TreeItem):
-    """A Json item corresponding to a pulse in QTreeView"""
-
-    def __init__(self, parent: 'TreePulseItem' = None, key='', description='', pulse_id='', status='',
-                 time_from=None, time_to=None, data_type=''):
-        super().__init__(parent, key, description, data_type)
-        self._pulse_id = pulse_id
-        self._status = status
-        self._timeFrom = time_from
-        self._timeTo = time_to
-
-    def is_folder(self):
-        return self.data_type == "folder"
-
-    @classmethod
-    def load(cls, value: Union[List, Dict], parent: "TreePulseItem" = None, path: object = None,
-             consulted: object = False) -> "TreePulseItem":
-        if path is None:
-            path = []
-
-        root_item = TreePulseItem(parent)
-
-        if not isinstance(value, dict):
-            return root_item
-        items = sorted(value.items(), key=lambda x: (not x[0].isdigit(), x[0]))
-
-        for key, val in items:
-            path.append(key)
-            child = cls.load(val, root_item, path)
-            if val == '':
-                child.key = key
-                child.data_type = "variable"
-            else:
-                child.key = key
-                child.data_type = "folder"
-            child.path = '-'.join(path)
             root_item.append_child(child)
             path.pop()
 
