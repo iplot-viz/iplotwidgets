@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt, Signal
 
 from iplotDataAccess.dataAccess import DataSource
 from iplotDataAccess.dataSourceConfig import DS_CODAC_TYPE
-from iplotWidgets.pulseBrowser.variableTreePaging import VariableTreePaging
+from iplotWidgets.pulseBrowser.pulseTree import PulseTree
 from iplotWidgets.variableBrowser.tools.converters import parse_pulses_to_dict
 from iplotLogging import setupLogger as setupLog
 from iplotDataAccess.appDataAccess import AppDataAccess
@@ -45,7 +45,7 @@ class PulseBrowser(QWidget):
                 ),
             )
             self.flag = ""
-            self.tree = VariableTreePaging()
+            self.tree = PulseTree()
             self.searchbar = QLineEdit()
             self.searchbar.textChanged.connect(self.update_display)
 

@@ -2,13 +2,13 @@ from PySide6.QtGui import QCursor
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QTreeView, QToolTip
 from iplotDataAccess.appDataAccess import AppDataAccess
-from iplotWidgets.pulseBrowser.models.mtJsonModelPulse import JsonModelPulse
+from iplotWidgets.pulseBrowser.models.PulseModel import PulseModel
 
 
-class VariableTreePaging(QTreeView):
+class PulseTree(QTreeView):
     def __init__(self):
         super().__init__()
-        self.models = {'SEARCH': JsonModelPulse(data_source=AppDataAccess.da.defaultds, search=True)}
+        self.models = {'SEARCH': PulseModel(data_source=AppDataAccess.da.defaultds, search=True)}
         self.setSelectionMode(self.selectionMode().ExtendedSelection)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.open_menu)
@@ -31,7 +31,7 @@ class VariableTreePaging(QTreeView):
     def load_model(self, data_source):
         ds_name = data_source.name
         if ds_name not in self.models:
-            self.models[ds_name] = JsonModelPulse(data_source=data_source)
+            self.models[ds_name] = PulseModel(data_source=data_source)
             self.models[ds_name].load()
 
         self.setModel(self.models[ds_name])

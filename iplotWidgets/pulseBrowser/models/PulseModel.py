@@ -7,7 +7,7 @@ from iplotDataAccess.dataSourceConfig import DS_CODAC_TYPE, DS_IMAS_TYPE
 from iplotWidgets.variableBrowser.tools.converters import parse_pulses_to_dict
 
 
-class JsonModelPulse(QAbstractItemModel):
+class PulseModel(QAbstractItemModel):
     """ An editable model of Json data """
 
     def __init__(self, data_source: DataSource, parent: QObject = None, search=False):
@@ -56,9 +56,9 @@ class JsonModelPulse(QAbstractItemModel):
         self.beginResetModel()
 
         if self.data_source.dtype == DS_IMAS_TYPE:
-            self.root_item = ImasTreePulseItem.load(document)
+            self.root_item = ImasPulseItem.load(document)
         elif self.data_source.dtype == DS_CODAC_TYPE:
-            self.root_item = UdaTreePulseItem.load(document, UdaTreePulseItem(data_type="folder"), consulted=True)
+            self.root_item = UdaPulseItem.load(document, UdaPulseItem(data_type="folder"), consulted=True)
 
         self.endResetModel()
 
@@ -231,10 +231,10 @@ class PulseItem:
         pass
 
 
-class UdaTreePulseItem(PulseItem):
+class UdaPulseItem(PulseItem):
     """A Json item corresponding to a pulse in QTreeView"""
 
-    def __init__(self, parent: 'UdaTreePulseItem' = None, key='', consulted=False, description='', pulse_id='',
+    def __init__(self, parent: 'UdaPulseItem' = None, key='', consulted=False, description='', pulse_id='',
                  status='', time_from=None, time_to=None, duration=None, data_type=''):
         super().__init__(parent, key, description, data_type)
         self.pulse_id = pulse_id
@@ -254,15 +254,15 @@ class UdaTreePulseItem(PulseItem):
         return self.key
 
     @classmethod
-    def load(cls, value: Union[List, Dict], parent: "UdaTreePulseItem" = None, path: object = None,
-             consulted: object = False) -> "UdaTreePulseItem":
+    def load(cls, value: Union[List, Dict], parent: "UdaPulseItem" = None, path: object = None,
+             consulted: object = False) -> "UdaPulseItem":
         if path is None:
             path = []
         if consulted:
             root_item = parent
             root_item.consulted = consulted
         else:
-            root_item = UdaTreePulseItem(parent)
+            root_item = UdaPulseItem(parent)
 
         if list(value.keys()) == ['description', 'status', 'timeFrom', 'timeTo', 'duration']:
             root_item.description = value['description']
@@ -290,10 +290,10 @@ class UdaTreePulseItem(PulseItem):
         return root_item
 
 
-class ImasTreePulseItem(PulseItem):
+class ImasPulseItem(PulseItem):
     """A Json item corresponding to a pulse in QTreeView"""
 
-    def __init__(self, parent: 'ImasTreePulseItem' = None, key='', description='', pulse_id='', status='',
+    def __init__(self, parent: 'ImasPulseItem' = None, key='', description='', pulse_id='', status='',
                  time_from=None, time_to=None, data_type=''):
         super().__init__(parent, key, description, data_type)
         self.pulse_id = pulse_id
