@@ -9,7 +9,7 @@ from iplotDataAccess.dataAccess import DataSource
 from iplotDataAccess.dataSourceConfig import DS_CODAC_TYPE
 from iplotWidgets.variableBrowser.variableTree import VariableTree
 from iplotWidgets.variableBrowser.variableTable import VariableTable
-from iplotWidgets.variableBrowser.tools.converters import parse, parse_groups_to_dict
+from iplotWidgets.variableBrowser.tools.converters import parse_search_to_dict, parse_groups_to_dict
 from iplotLogging import setupLogger as setupLog
 from iplotDataAccess.appDataAccess import AppDataAccess
 
@@ -139,7 +139,7 @@ class VariableBrowser(QWidget):
             self.progress_bar.setFormat("Loading variables into the model")
             self.progress_bar.setValue(80)
             if data_source.dtype == DS_CODAC_TYPE:
-                found = parse(found)
+                found = parse_search_to_dict(found)
             self.tree.models['SEARCH'].load_document(found)
             time.sleep(0.4)
         else:
