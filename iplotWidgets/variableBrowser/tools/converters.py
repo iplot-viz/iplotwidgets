@@ -1,4 +1,5 @@
 from typing import List
+import pandas as pd
 
 
 def parse_groups_to_dict(lines: List) -> dict:
@@ -52,10 +53,16 @@ def parse_pulses_to_dict(lines: List) -> dict:
     result = dict()
     for line in lines:
         cur_dict = result
-        list_line = line.replace('/', ':').split(':')
+        list_line = line.pulseID.replace('/', ':').split(':')
         for var in list_line:
             if var.isdigit():
-                cur_dict = cur_dict.setdefault(line, '')
+                info_dict = {'description': line.description,
+                             'status': line.status.strip(),
+                             'timeFrom': pd.to_datetime(line.timeFrom),
+                             'timeTo': pd.to_datetime(line.timeTo),
+                             'duration': pd.to_datetime(line.timeTo) - pd.to_datetime(line.timeFrom)}
+
+                cur_dict = cur_dict.setdefault(line.pulseID, info_dict)
             elif '-' in var:
                 sub_var = var.split('-')
                 for variable in sub_var:
