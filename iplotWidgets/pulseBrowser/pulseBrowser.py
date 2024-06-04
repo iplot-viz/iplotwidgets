@@ -1,15 +1,16 @@
+import math
 import re
 import time
 
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox, QHBoxLayout, QVBoxLayout, \
-    QProgressBar
+    QProgressBar, QLabel
 from PySide6.QtCore import Qt, Signal
 
 from iplotDataAccess.dataAccess import DataSource
 from iplotDataAccess.dataSourceConfig import DS_CODAC_TYPE
-from iplotWidgets.pulseBrowser.pulseTree import PulseTree
-from iplotWidgets.variableBrowser.tools.converters import parse_pulses_to_dict
+from iplotWidgets.pulseBrowser.PulseTable import PulseTable
+from iplotWidgets.variableBrowser.tools.converters import parse_pulses
 from iplotLogging import setupLogger as setupLog
 from iplotDataAccess.appDataAccess import AppDataAccess
 
@@ -32,7 +33,7 @@ class PulseBrowser(QWidget):
             self._initialized = True
             super().__init__(*args, **kwargs)
 
-            self.resize(1000, 800)
+            self.resize(1000, 730)
             self.width = 840
             self.height = 680
             self.setAcceptDrops(True)
@@ -45,7 +46,7 @@ class PulseBrowser(QWidget):
                 ),
             )
             self.flag = ""
-            self.tree = PulseTree()
+            self.table = PulseTable()
             self.searchbar = QLineEdit()
             self.searchbar.textChanged.connect(self.update_display)
 
@@ -85,8 +86,31 @@ class PulseBrowser(QWidget):
             bot_v_layout = QVBoxLayout()
             bot_v_layout.addWidget(self.add_to_mint_btn)
 
+            # Pagination
+            pagination_layout = QHBoxLayout()
+            self.rows_text = QLabel("Rows per page:")
+            self.rows_page = QComboBox()
+            self.rows_page.addItems(["20", "50", "100"])
+            self.rows_page.setCurrentText("20")
+            self.rows_page.currentIndexChanged.connect(self.change_page_size)
+            self.page_label = QLabel()
+            self.update_page_label()
+            self.previous_page = QPushButton('<')
+            self.previous_page.clicked.connect(self.previous_pulses)
+            self.next_page = QPushButton('>')
+            self.next_page.clicked.connect(self.next_pulses)
+
+            pagination_layout.addWidget(self.rows_text)
+            pagination_layout.addWidget(self.rows_page)
+            pagination_layout.addStretch()
+            pagination_layout.addWidget(self.page_label)
+            pagination_layout.addWidget(self.previous_page)
+            pagination_layout.addWidget(self.next_page)
+
             mid_v_layout = QVBoxLayout()
-            mid_v_layout.addWidget(self.tree)
+            mid_v_layout.addWidget(self.table)
+            mid_v_layout.addLayout(pagination_layout)
+
             main_v_layout = QVBoxLayout()
             main_v_layout.addLayout(top_v_layout)
             self.add_layout = main_v_layout.addLayout(mid_v_layout)
@@ -98,27 +122,56 @@ class PulseBrowser(QWidget):
 
     def change_model(self):
         new_source = self.get_current_source()
-        self.tree.load_model(new_source)
+        self.table.reset_page()
+        self.table.load_model(new_source)
+        self.update_page_label()
 
     def update_display(self):
         text = self.searchbar.text()
-        if len(text) < 3:
-            self.tree.set_model(self.get_current_source().name)
+        if not len(text):
+            self.table.reset_page()
+            self.table.load_model(self.get_current_source())
+            self.update_page_label()
+
+    def update_page_label(self):
+        total_pages = math.ceil(self.table.model.dataframe.shape[0] / self.table.page_size)
+        self.page_label.setText(f"Page {self.table.page_num} of {total_pages}")
+
+    def previous_pulses(self):
+        if self.table.page_num > 1:
+            self.table.page_num -= 1
+            self.table.model.paginate_dataframe(self.table.page_size, self.table.page_num)
+            self.update_page_label()
+
+    def next_pulses(self):
+        total_pages = math.ceil(self.table.model.dataframe.shape[0] / self.table.page_size)
+        if self.table.page_num < total_pages:
+            self.table.page_num += 1
+            self.table.model.paginate_dataframe(self.table.page_size, self.table.page_num)
+            self.update_page_label()
+
+    def change_page_size(self):
+        new_size = self.rows_page.currentText()
+        self.table.page_size = int(new_size)
+        self.table.reset_page()
+        self.table.model.paginate_dataframe(self.table.page_size, self.table.page_num)
+        self.update_page_label()
 
     def add_pulse(self):
-        indexes = self.tree.selectedIndexes()
+        indexes = self.table.selectedIndexes()
         pulses = []
-        indexes = [ix.internalPointer() for ix in indexes]
-        for ix in indexes:
-            value = ix.key
+        rows = list({ix.row() for ix in indexes})
+
+        for row in rows:
+            value = self.table.model.get_pulse(row).key
             pulses.append(value)
 
-        # Check implemented
+        # Check implemented to insert the pulses in the correct place
         if self.flag == "table":
             self.cmd_finish.emit(pulses)
         elif self.flag == "button":
             self.srch_finish.emit(pulses)
-        self.tree.clearSelection()
+        self.table.clearSelection()
 
     def search(self):
         text = self.searchbar.text()
@@ -129,8 +182,6 @@ class PulseBrowser(QWidget):
         self.progress_bar.setFormat("Retrieving the variable list from the server")
         self.progress_bar.setValue(40)
         time.sleep(0.4)
-
-        self.tree.set_model('SEARCH')
 
         pattern = 'ITER:*/*'
 
@@ -150,15 +201,15 @@ class PulseBrowser(QWidget):
                 pattern = f'ITER:*/{number}'
 
         data_source = self.get_current_source()
-        self.tree.models['SEARCH'].data_source = data_source
         found = AppDataAccess.da.get_pulse_list(data_source_name=data_source.name, pattern=pattern)
 
         if found:
             self.progress_bar.setFormat("Loading pulses into the model")
             self.progress_bar.setValue(80)
             if data_source.dtype == DS_CODAC_TYPE:
-                found = parse_pulses_to_dict(found)
-            self.tree.models['SEARCH'].load_document(found)
+                found = parse_pulses(found)
+            self.table.reset_page()
+            self.table.model.load_document(found, data_source, self.table.page_size, self.table.page_num)
             time.sleep(0.4)
         else:
             self.progress_bar.setStyleSheet("QProgressBar::chunk {background-color: #FF6666;}")
@@ -166,7 +217,10 @@ class PulseBrowser(QWidget):
             self.progress_bar.setValue(80)
             self.progress_bar.setStyleSheet("")
             time.sleep(2)
-            self.tree.models['SEARCH'].load_document({})
+            self.table.reset_page(False)
+            self.table.model.load_document({}, data_source, self.table.page_size, self.table.page_num)
+
+        self.update_page_label()
 
         # Search done
         self.search_btn.setEnabled(True)
@@ -190,8 +244,10 @@ class PulseBrowser(QWidget):
             self.progress_bar.setValue(80)
             time.sleep(0.4)
             if data_source.dtype == DS_CODAC_TYPE:
-                document = parse_pulses_to_dict(document)
-            self.tree.models[data_source.name].load_document(document)
+                document = parse_pulses(document)
+            self.table.reset_page()
+            self.table.model.load_document(document, data_source, self.table.page_size, self.table.page_num)
+            self.update_page_label()
 
             self.refresh_btn.setEnabled(True)
             self.progress_bar.setFormat("Finished")
@@ -208,3 +264,7 @@ class PulseBrowser(QWidget):
             time.sleep(3)
             self.progress_bar.setStyleSheet("")
             self.progress_bar.hide()
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Return:
+            self.add_pulse()
