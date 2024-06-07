@@ -33,7 +33,7 @@ class PulseBrowser(QWidget):
             self._initialized = True
             super().__init__(*args, **kwargs)
 
-            self.resize(1000, 730)
+            self.resize(1300, 730)
             self.width = 840
             self.height = 680
             self.setAcceptDrops(True)
@@ -58,6 +58,11 @@ class PulseBrowser(QWidget):
             self.search_btn.clicked.connect(self.search)
             self.refresh_btn = QPushButton('Refresh')
             self.refresh_btn.clicked.connect(self.refresh)
+
+            self.previous_page = QPushButton('<')
+            self.previous_page.clicked.connect(self.previous_pulses)
+            self.next_page = QPushButton('>')
+            self.next_page.clicked.connect(self.next_pulses)
 
             # Progress bar
             self.progress_bar = QProgressBar()
@@ -95,10 +100,6 @@ class PulseBrowser(QWidget):
             self.rows_page.currentIndexChanged.connect(self.change_page_size)
             self.page_label = QLabel()
             self.update_page_label()
-            self.previous_page = QPushButton('<')
-            self.previous_page.clicked.connect(self.previous_pulses)
-            self.next_page = QPushButton('>')
-            self.next_page.clicked.connect(self.next_pulses)
 
             pagination_layout.addWidget(self.rows_text)
             pagination_layout.addWidget(self.rows_page)
@@ -130,31 +131,45 @@ class PulseBrowser(QWidget):
         text = self.searchbar.text()
         if not len(text):
             self.table.reset_page()
-            self.table.load_model(self.get_current_source())
+            self.table.set_model(self.get_current_source().name)
             self.update_page_label()
 
     def update_page_label(self):
-        total_pages = math.ceil(self.table.model.dataframe.shape[0] / self.table.page_size)
+        total_pages = math.ceil(
+            self.table.models[self.table.current_model].dataframe.shape[0] / self.table.page_size)
         self.page_label.setText(f"Page {self.table.page_num} of {total_pages}")
+        self.update_pagination_buttons()
+
+    def update_pagination_buttons(self):
+        total_pages = math.ceil(
+            self.table.models[self.table.current_model].dataframe.shape[0] / self.table.page_size)
+        self.previous_page.setEnabled(self.table.page_num > 1)
+        self.next_page.setEnabled(self.table.page_num < total_pages)
+        if total_pages == 0:
+            self.previous_page.setEnabled(False)
+            self.next_page.setEnabled(False)
 
     def previous_pulses(self):
         if self.table.page_num > 1:
             self.table.page_num -= 1
-            self.table.model.paginate_dataframe(self.table.page_size, self.table.page_num)
+            self.table.models[self.table.current_model].paginate_dataframe(self.table.page_size,
+                                                                                 self.table.page_num)
             self.update_page_label()
 
     def next_pulses(self):
-        total_pages = math.ceil(self.table.model.dataframe.shape[0] / self.table.page_size)
+        total_pages = math.ceil(
+            self.table.models[self.table.current_model].dataframe.shape[0] / self.table.page_size)
         if self.table.page_num < total_pages:
             self.table.page_num += 1
-            self.table.model.paginate_dataframe(self.table.page_size, self.table.page_num)
+            self.table.models[self.table.current_model].paginate_dataframe(self.table.page_size,
+                                                                                 self.table.page_num)
             self.update_page_label()
 
     def change_page_size(self):
         new_size = self.rows_page.currentText()
         self.table.page_size = int(new_size)
         self.table.reset_page()
-        self.table.model.paginate_dataframe(self.table.page_size, self.table.page_num)
+        self.table.models[self.table.current_model].paginate_dataframe(self.table.page_size, self.table.page_num)
         self.update_page_label()
 
     def add_pulse(self):
@@ -163,7 +178,7 @@ class PulseBrowser(QWidget):
         rows = list({ix.row() for ix in indexes})
 
         for row in rows:
-            value = self.table.model.get_pulse(row).key
+            value = self.table.models[self.table.current_model].get_pulse(row)  # ERROR AQUI
             pulses.append(value)
 
         # Check implemented to insert the pulses in the correct place
@@ -200,7 +215,10 @@ class PulseBrowser(QWidget):
             elif not folder and number:
                 pattern = f'ITER:*/{number}'
 
+        self.table.set_model('SEARCH')
         data_source = self.get_current_source()
+        self.table.models['SEARCH'].data_source = data_source
+
         found = AppDataAccess.da.get_pulse_list(data_source_name=data_source.name, pattern=pattern)
 
         if found:
@@ -209,7 +227,7 @@ class PulseBrowser(QWidget):
             if data_source.dtype == DS_CODAC_TYPE:
                 found = parse_pulses(found)
             self.table.reset_page()
-            self.table.model.load_document(found, data_source, self.table.page_size, self.table.page_num)
+            self.table.models['SEARCH'].load_document(found, self.table.page_size, self.table.page_num)
             time.sleep(0.4)
         else:
             self.progress_bar.setStyleSheet("QProgressBar::chunk {background-color: #FF6666;}")
@@ -218,7 +236,7 @@ class PulseBrowser(QWidget):
             self.progress_bar.setStyleSheet("")
             time.sleep(2)
             self.table.reset_page(False)
-            self.table.model.load_document({}, data_source, self.table.page_size, self.table.page_num)
+            self.table.models['SEARCH'].load_document({}, self.table.page_size, self.table.page_num)
 
         self.update_page_label()
 
@@ -246,7 +264,7 @@ class PulseBrowser(QWidget):
             if data_source.dtype == DS_CODAC_TYPE:
                 document = parse_pulses(document)
             self.table.reset_page()
-            self.table.model.load_document(document, data_source, self.table.page_size, self.table.page_num)
+            self.table.models[data_source.name].load_document(document, self.table.page_size, self.table.page_num)
             self.update_page_label()
 
             self.refresh_btn.setEnabled(True)
