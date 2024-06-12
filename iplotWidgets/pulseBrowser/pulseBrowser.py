@@ -1,4 +1,3 @@
-import math
 import re
 import time
 
@@ -97,7 +96,7 @@ class PulseBrowser(QWidget):
             self.rows_page = QComboBox()
             self.rows_page.addItems(["20", "50", "100"])
             self.rows_page.setCurrentText("20")
-            self.rows_page.currentIndexChanged.connect(self.change_page_size)
+            self.rows_page.currentIndexChanged.connect(self.update_page_size)
             self.page_label = QLabel()
             self.update_page_label()
 
@@ -123,54 +122,41 @@ class PulseBrowser(QWidget):
 
     def change_model(self):
         new_source = self.get_current_source()
-        self.table.reset_page()
+        # self.table.reset_page()
         self.table.load_model(new_source)
         self.update_page_label()
 
     def update_display(self):
         text = self.searchbar.text()
         if not len(text):
-            self.table.reset_page()
             self.table.set_model(self.get_current_source().name)
             self.update_page_label()
 
     def update_page_label(self):
-        total_pages = math.ceil(
-            self.table.models[self.table.current_model].dataframe.shape[0] / self.table.page_size)
-        self.page_label.setText(f"Page {self.table.page_num} of {total_pages}")
+        self.page_label.setText(f"Page {self.table.get_current_page()} of {self.table.get_total_pages()}")
         self.update_pagination_buttons()
 
     def update_pagination_buttons(self):
-        total_pages = math.ceil(
-            self.table.models[self.table.current_model].dataframe.shape[0] / self.table.page_size)
-        self.previous_page.setEnabled(self.table.page_num > 1)
-        self.next_page.setEnabled(self.table.page_num < total_pages)
-        if total_pages == 0:
-            self.previous_page.setEnabled(False)
-            self.next_page.setEnabled(False)
+        total_pages = self.table.get_total_pages()
+        self.previous_page.setEnabled(self.table.get_current_page() > 1 and total_pages > 0)
+        self.next_page.setEnabled(self.table.get_current_page() < total_pages and total_pages > 0)
 
     def previous_pulses(self):
-        if self.table.page_num > 1:
-            self.table.page_num -= 1
-            self.table.models[self.table.current_model].paginate_dataframe(self.table.page_size,
-                                                                                 self.table.page_num)
-            self.update_page_label()
+        model = self.table.get_current_model()
+        model.previous_page()
+        self.update_page_label()
 
     def next_pulses(self):
-        total_pages = math.ceil(
-            self.table.models[self.table.current_model].dataframe.shape[0] / self.table.page_size)
-        if self.table.page_num < total_pages:
-            self.table.page_num += 1
-            self.table.models[self.table.current_model].paginate_dataframe(self.table.page_size,
-                                                                                 self.table.page_num)
-            self.update_page_label()
-
-    def change_page_size(self):
-        new_size = self.rows_page.currentText()
-        self.table.page_size = int(new_size)
-        self.table.reset_page()
-        self.table.models[self.table.current_model].paginate_dataframe(self.table.page_size, self.table.page_num)
+        model = self.table.get_current_model()
+        model.next_page()
         self.update_page_label()
+
+    def update_page_size(self):
+        self.table.get_current_model().page_size = self.get_page_size()
+        self.update_page_label()
+
+    def get_page_size(self):
+        return int(self.rows_page.currentText())
 
     def add_pulse(self):
         indexes = self.table.selectedIndexes()
@@ -178,7 +164,7 @@ class PulseBrowser(QWidget):
         rows = list({ix.row() for ix in indexes})
 
         for row in rows:
-            value = self.table.models[self.table.current_model].get_pulse(row)  # ERROR AQUI
+            value = self.table.models[self.table.current_model_name].get_pulse(row)
             pulses.append(value)
 
         # Check implemented to insert the pulses in the correct place
@@ -216,8 +202,9 @@ class PulseBrowser(QWidget):
                 pattern = f'ITER:*/{number}'
 
         self.table.set_model('SEARCH')
+        search_model = self.table.models['SEARCH']
         data_source = self.get_current_source()
-        self.table.models['SEARCH'].data_source = data_source
+        search_model.data_source = data_source
 
         found = AppDataAccess.da.get_pulse_list(data_source_name=data_source.name, pattern=pattern)
 
@@ -226,8 +213,8 @@ class PulseBrowser(QWidget):
             self.progress_bar.setValue(80)
             if data_source.dtype == DS_CODAC_TYPE:
                 found = parse_pulses(found)
-            self.table.reset_page()
-            self.table.models['SEARCH'].load_document(found, self.table.page_size, self.table.page_num)
+            search_model.load_document(found)
+            self.update_page_size()
             time.sleep(0.4)
         else:
             self.progress_bar.setStyleSheet("QProgressBar::chunk {background-color: #FF6666;}")
@@ -235,8 +222,7 @@ class PulseBrowser(QWidget):
             self.progress_bar.setValue(80)
             self.progress_bar.setStyleSheet("")
             time.sleep(2)
-            self.table.reset_page(False)
-            self.table.models['SEARCH'].load_document({}, self.table.page_size, self.table.page_num)
+            search_model.load_document({})
 
         self.update_page_label()
 
@@ -263,8 +249,9 @@ class PulseBrowser(QWidget):
             time.sleep(0.4)
             if data_source.dtype == DS_CODAC_TYPE:
                 document = parse_pulses(document)
-            self.table.reset_page()
-            self.table.models[data_source.name].load_document(document, self.table.page_size, self.table.page_num)
+            model = self.table.get_current_model()
+            model.load_document(document)
+            self.update_page_size()
             self.update_page_label()
 
             self.refresh_btn.setEnabled(True)

@@ -17,10 +17,7 @@ class PulseTable(QTableView):
 
         # self.model = PulseTableModel()
         self.models = {'SEARCH': PulseTableModel(data_source=AppDataAccess.da.defaultds)}
-        self.current_model = ''
-
-        self.page_size = 20  # pulses per page
-        self.page_num = 1  # current page
+        self.current_model_name = ''
 
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.setMouseTracking(True)
@@ -39,18 +36,24 @@ class PulseTable(QTableView):
         ds_name = data_source.name
         if ds_name not in self.models:
             self.models[ds_name] = PulseTableModel(data_source=data_source)
-            self.models[ds_name].load(self.page_size, self.page_num)
+            self.models[ds_name].load()
 
-        self.current_model = ds_name
+        self.current_model_name = ds_name
         self.setModel(self.models[ds_name])
 
-    def set_model(self, data_source_name):
-        if data_source_name in self.models:
-            self.current_model = data_source_name
-            self.setModel(self.models[data_source_name])
+    def set_model(self, ds_name):
+        if ds_name in self.models:
+            self.current_model_name = ds_name
+            self.setModel(self.models[ds_name])
 
-    def reset_page(self, found: bool = True):
-        if found:
-            self.page_num = 1
-        else:
-            self.page_num = 0
+    def get_current_model(self) -> PulseTableModel:
+        return self.models[self.current_model_name]
+
+    def get_page_size(self):
+        return self.get_current_model().page_size
+
+    def get_total_pages(self):
+        return self.get_current_model().get_total_pages()
+
+    def get_current_page(self):
+        return self.get_current_model().get_real_page()
