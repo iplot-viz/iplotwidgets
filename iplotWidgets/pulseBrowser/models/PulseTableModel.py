@@ -64,7 +64,8 @@ class PulseTableModel(QAbstractTableModel):
         self.layoutChanged.emit()
 
     def get_pulse(self, row: int):
-        return self.dataframe.iloc[row, 0]
+        current_row = row + self._current_page * self._page_size
+        return self.dataframe.iloc[current_row, 0]
 
     def next_page(self) -> None:
         if self._current_page < self.get_total_pages():
