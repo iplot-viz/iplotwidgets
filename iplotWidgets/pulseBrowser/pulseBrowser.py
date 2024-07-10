@@ -46,6 +46,7 @@ class PulseBrowser(QWidget):
             )
             self.flag = ""
             self.table = PulseTable()
+            self.table.doubleClicked.connect(self.info_pulse)
             self.searchbar = QLineEdit()
             self.searchbar.textChanged.connect(self.update_display)
 
@@ -273,3 +274,7 @@ class PulseBrowser(QWidget):
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Return:
             self.add_pulse()
+
+    def info_pulse(self, index):
+        row = index.row()
+        self.table.get_pulse_info(row)
