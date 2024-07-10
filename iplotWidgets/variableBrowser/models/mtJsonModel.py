@@ -1,10 +1,8 @@
 from typing import Any, List, Dict, Union
 from PySide6 import QtGui
 from PySide6.QtCore import QAbstractItemModel, QModelIndex, QObject, Qt, QSize, QPersistentModelIndex
-
 import re
 
-from iplotDataAccess import imasAccess
 from iplotDataAccess.appDataAccess import AppDataAccess
 from iplotDataAccess.dataAccess import DataSource
 from iplotDataAccess.dataSourceConfig import DS_CODAC_TYPE, DS_IMAS_TYPE
@@ -463,7 +461,7 @@ class ImasVarItem(VarItem):
             root_item.dimension = value['dimension']
 
         for key, val in value.items():
-            if key in imasAccess.CBS_ATTR:
+            if key in ['documentation', 'data_type', 'units', 'dimension']:
                 continue
             path.append(key)
             child = cls.load(val, root_item, path)
