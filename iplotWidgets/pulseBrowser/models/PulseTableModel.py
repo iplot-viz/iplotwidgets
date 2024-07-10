@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt
 from iplotDataAccess.appDataAccess import AppDataAccess
 from iplotDataAccess.dataAccess import DataSource
 from iplotDataAccess.dataSourceConfig import DS_CODAC_TYPE, DS_IMAS_TYPE
-from iplotWidgets.variableBrowser.tools.converters import parse_pulses
+from iplotWidgets.variableBrowser.tools.converters import parse_pulses, parse_imas_pulses
 
 
 class PulseTableModel(QAbstractTableModel):
@@ -17,8 +17,12 @@ class PulseTableModel(QAbstractTableModel):
     def __init__(self, data_source: DataSource):
         super(PulseTableModel, self).__init__()
         self.data_source = data_source
-        self.dataframe: pd.DataFrame = pd.DataFrame(
-            columns=['Pulse', 'Description', 'Status', 'Time From', 'Time To', 'Duration'])
+
+        if self.data_source.dtype == DS_IMAS_TYPE:
+            self.dataframe: pd.DataFrame = pd.DataFrame(columns=['Pulse', 'Run'])
+        elif self.data_source.dtype == DS_CODAC_TYPE:
+            self.dataframe: pd.DataFrame = pd.DataFrame(
+                columns=['Pulse', 'Description', 'Status', 'Time From', 'Time To', 'Duration'])
         self._current_page: int = 0
         self._page_size: int = 20
 
@@ -65,7 +69,11 @@ class PulseTableModel(QAbstractTableModel):
 
     def get_pulse(self, row: int):
         current_row = row + self._current_page * self._page_size
-        return self.dataframe.iloc[current_row, 0]
+        if self.data_source.dtype == DS_IMAS_TYPE:
+            run = int(self.dataframe.iloc[current_row, 1])
+            return self.dataframe.iloc[current_row, 0] + '/' + str(run)
+        else:
+            return self.dataframe.iloc[current_row, 0]
 
     def next_page(self) -> None:
         if self._current_page < self.get_total_pages():
@@ -91,6 +99,9 @@ class PulseTableModel(QAbstractTableModel):
         """ Load model from zero """
         document = AppDataAccess.da.get_pulse_list(data_source_name=self.data_source.name)
 
+        if self.data_source.dtype == DS_IMAS_TYPE:
+            document = parse_imas_pulses(document)
+
         if self.data_source.dtype == DS_CODAC_TYPE:
             document = parse_pulses(document)
 
@@ -103,7 +114,7 @@ class PulseTableModel(QAbstractTableModel):
 
         if self.data_source.dtype == DS_IMAS_TYPE:
             for key, value in document.items():
-                self.add_row([ImasPulseItem(key, value)])
+                self.add_row([value['pulse'], value['run']])
 
         elif self.data_source.dtype == DS_CODAC_TYPE:
             # Clear previous dataframe if existed
@@ -113,6 +124,13 @@ class PulseTableModel(QAbstractTableModel):
                     [key, value['description'], value['status'], value['timeFrom'], value['timeTo'], value['duration']])
 
         self.endResetModel()
+
+    def get_pulse_info(self, row):
+        pulse = int(self.dataframe.iloc[row, 0])
+        run = int(self.dataframe.iloc[row, 1])
+        info = AppDataAccess.da.get_pulse_info(data_source_name=self.data_source.name, pulse=pulse, run=run)
+
+        print(info)
 
     @staticmethod
     def format_duration(duration: pd.Timedelta) -> str:
@@ -132,23 +150,3 @@ class PulseTableModel(QAbstractTableModel):
             return f"{time_str}"
         else:
             return f"{days} days {time_str}"
-
-
-class UdaPulseItem:
-    def __init__(self, key='', info: dict = None):
-        self.key = key
-        self.description = info['description']
-        self.status = info['status']
-        self.timeFrom = info['timeFrom']
-        self.timeTo = info['timeTo']
-        self.duration = info['duration']
-
-
-class ImasPulseItem:
-    def __init__(self, key='', info: dict = None):
-        self.key = key
-        self.description = info['description']
-        self.status = info['status']
-        self.timeFrom = info['timeFrom']
-        self.timeTo = info['timeTo']
-        self.duration = info['duration']
