@@ -57,3 +57,6 @@ class PulseTable(QTableView):
 
     def get_current_page(self):
         return self.get_current_model().get_real_page()
+
+    def get_pulse_info(self, row):
+        self.get_current_model().get_pulse_info(row)
