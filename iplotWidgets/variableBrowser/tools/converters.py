@@ -1,3 +1,4 @@
+import re
 from typing import List
 import pandas as pd
 
@@ -58,5 +59,23 @@ def parse_pulses(lines: List) -> dict:
                                 'timeFrom': pd.to_datetime(line.timeFrom),
                                 'timeTo': pd.to_datetime(line.timeTo),
                                 'duration': pd.to_datetime(line.timeTo) - pd.to_datetime(line.timeFrom)}
+
+    return result
+
+
+def parse_imas_pulses(lines: List) -> dict:
+    result = dict()
+    pulse = ''
+    run = ''
+
+    for line in lines:
+        match = re.search(r'ids_(\d{10})\.tree', line)
+        if match:
+            digits = match.group(1)
+            pulse = digits[:6]
+            run = digits[6:]
+
+        result[line] = {'pulse': pulse,
+                        'run': run}
 
     return result
