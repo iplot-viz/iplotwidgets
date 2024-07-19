@@ -15,7 +15,6 @@ class PulseTable(QTableView):
         self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.setColumnWidth(0, 100)
 
-        # self.model = PulseTableModel()
         self.models = {'SEARCH': PulseTableModel(data_source=AppDataAccess.da.defaultds)}
         self.current_model_name = ''
 
