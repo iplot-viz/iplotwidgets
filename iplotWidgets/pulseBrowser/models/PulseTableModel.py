@@ -113,6 +113,8 @@ class PulseTableModel(QAbstractTableModel):
         self.beginResetModel()
 
         if self.data_source.dtype == DS_IMAS_TYPE:
+            # Clear previous dataframe if existed
+            self.dataframe.drop(self.dataframe.index, inplace=True)
             for key, value in document.items():
                 self.add_row([value['pulse'], value['run']])
 
