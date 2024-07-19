@@ -2,13 +2,13 @@ from PySide6.QtGui import QCursor
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QTreeView, QToolTip, QAbstractItemView
 from iplotDataAccess.appDataAccess import AppDataAccess
-from iplotWidgets.variableBrowser.models.mtJsonModel import JsonModel
+from iplotWidgets.variableBrowser.models.mtJsonModel import VariableModel
 
 
 class VariableTree(QTreeView):
     def __init__(self):
         super().__init__()
-        self.models = {'SEARCH': JsonModel(data_source=AppDataAccess.da.defaultds, search=True)}
+        self.models = {'SEARCH': VariableModel(data_source=AppDataAccess.da.defaultds, search=True)}
         self.setSelectionMode(self.selectionMode().ExtendedSelection)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.open_menu)
@@ -25,7 +25,7 @@ class VariableTree(QTreeView):
         self.load_model(AppDataAccess.da.defaultds)
         self.dragged_item = None
 
-    def get_model(self) -> JsonModel:
+    def get_model(self) -> VariableModel:
         return self.model()
 
     def open_menu(self, position):
@@ -44,7 +44,7 @@ class VariableTree(QTreeView):
     def load_model(self, data_source):
         ds_name = data_source.name
         if ds_name not in self.models:
-            self.models[ds_name] = JsonModel(data_source=data_source)
+            self.models[ds_name] = VariableModel(data_source=data_source)
             self.models[ds_name].load()
 
         self.setModel(self.models[ds_name])
