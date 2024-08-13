@@ -190,20 +190,59 @@ class PulseBrowser(QWidget):
         columns = []
 
         if data_source.dtype == DS_CODAC_TYPE:
-            pattern = 'ITER:*/*'
+            location = ''
+            folder = ''
+            pulse = ''
             if text.isdigit():
-                pattern = f'ITER:*/{text}'
+                pattern = f'*:*/{text}'
             else:
-                parts = text.split('/')
-                folder = parts[0] if parts[0] != '*' else ''
-                number = parts[1] if len(parts) > 1 else ''
+                parts = text.split(':')
+                if len(parts) > 1:
+                    # At least, location and folder
+                    location = parts[0]
+                    rest = parts[1].split('/')
+                    if len(rest) > 1 and (rest[1].isdigit() or rest[1] == '*'):
+                        # Location, folder and pulse number specified
+                        folder = rest[0]
+                        pulse = rest[1]
+                    else:
+                        # Just location and folder
+                        folder = parts[1]
+                        pulse = ''
+                else:
+                    # Multiple cases: just location , just folder or folder with pulse
+                    ofd = parts[0].split('/')
+                    if len(ofd) > 1 and (ofd[1].isdigit() or ofd[1] == '*'):
+                        # Folder and pulse number specified
+                        location = ''
+                        folder = ofd[0] if not ofd[0].startswith('*') else ofd[0][1:]
+                        pulse = ofd[1]
+                    else:
+                        # Just location or folder
+                        if ofd[0].startswith('*') and ofd[0].endswith('*'):
+                            # Valid just for folder
+                            location = ''
+                            folder = ofd[0][1:]  # Remove the first '*'
+                            pulse = ''
+                        elif ofd[0].endswith('*'):
+                            # Valid just for location
+                            location = ofd[0]
+                            folder = ''
+                            pulse = ''
 
-                if folder and number:
-                    pattern = f'ITER:{folder}*/{number}'
-                elif folder and not number:
-                    pattern = f'ITER:{folder}*/*'
-                elif not folder and number:
-                    pattern = f'ITER:*/{number}'
+                # Set pattern for search
+                if location and folder and pulse:
+                    pattern = f'{location}:{folder}/{pulse}'
+                elif location and not folder and not pulse:
+                    pattern = f'{location}:*/*'
+                elif location and folder and not pulse:
+                    pattern = f'{location}:{folder}/*'
+                elif not location and folder and pulse:
+                    pattern = f'*:{folder}/{pulse}'
+                elif not location and folder and not pulse:
+                    pattern = f'*:{folder}/*'
+                else:
+                    pattern = ' '
 
             found = AppDataAccess.da.get_pulse_list(data_source_name=data_source.name, pattern=pattern)
             columns = ['Pulse', 'Description', 'Status', 'Time From', 'Time To', 'Duration']
