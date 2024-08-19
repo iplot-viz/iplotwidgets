@@ -10,7 +10,7 @@ class PulseTable(QTableView):
         QTableView.__init__(self)
         self.setSelectionMode(self.selectionMode().ExtendedSelection)
         self.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
-        self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.horizontalHeader().setStretchLastSection(True)
         self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.setColumnWidth(0, 100)
