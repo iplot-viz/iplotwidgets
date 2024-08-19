@@ -2,7 +2,7 @@ import time
 
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox, QHBoxLayout, QVBoxLayout, \
-    QProgressBar
+    QProgressBar, QSplitter
 from PySide6.QtCore import Qt, Signal
 
 from iplotDataAccess.dataAccess import DataSource
@@ -69,6 +69,13 @@ class VariableBrowser(QWidget):
         self.sources_combo.setCurrentText(AppDataAccess.da.get_default_ds_name())
         self.sources_combo.currentTextChanged.connect(self.change_model)
 
+        # Splitter
+        self.splitter = QSplitter(Qt.Horizontal)
+        self.splitter.addWidget(self.tree)
+        self.splitter.addWidget(self.tableView)
+        self.splitter.setStretchFactor(0, 1)
+        self.splitter.setStretchFactor(1, 1)
+
         top_h_layout = QHBoxLayout()
         top_h_layout.addWidget(self.sources_combo)
         top_h_layout.addWidget(self.refresh_btn)
@@ -87,8 +94,7 @@ class VariableBrowser(QWidget):
         bot_v_layout.addWidget(self.finish_btn)
 
         mid_h_layout = QHBoxLayout()
-        mid_h_layout.addWidget(self.tree)
-        mid_h_layout.addWidget(self.tableView)
+        mid_h_layout.addWidget(self.splitter)
         main_v_layout = QVBoxLayout()
         main_v_layout.addLayout(top_v_layout)
         self.add_layout = main_v_layout.addLayout(mid_h_layout)
