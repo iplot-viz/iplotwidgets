@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt
 
 from iplotDataAccess.appDataAccess import AppDataAccess
 from iplotDataAccess.dataAccess import DataSource
-from iplotDataAccess.dataSourceConfig import DS_CODAC_TYPE, DS_IMAS_TYPE
+from iplotDataAccess.dataSourceConfig import DS_CODAC_TYPE, DS_IMAS_TYPE, DS_CSV_TYPE
 from iplotWidgets.variableBrowser.tools.converters import parse_pulses, parse_imas_pulses
 
 
@@ -23,6 +23,8 @@ class PulseTableModel(QAbstractTableModel):
         elif self.data_source.dtype == DS_CODAC_TYPE:
             self.dataframe: pd.DataFrame = pd.DataFrame(
                 columns=['Pulse', 'Description', 'Status', 'Time From', 'Time To', 'Duration'])
+        elif self.data_source.dtype == DS_CSV_TYPE:
+            self.dataframe: pd.DataFrame = pd.DataFrame(columns=['Pulse'])
         self._current_page: int = 0
         self._page_size: int = 20
 
@@ -102,8 +104,11 @@ class PulseTableModel(QAbstractTableModel):
         if self.data_source.dtype == DS_IMAS_TYPE:
             document = parse_imas_pulses(document)
 
-        if self.data_source.dtype == DS_CODAC_TYPE:
+        elif self.data_source.dtype == DS_CODAC_TYPE:
             document = parse_pulses(document)
+
+        elif self.data_source.dtype == DS_CSV_TYPE:
+            document = document
 
         self.load_document(document)
 
@@ -112,18 +117,19 @@ class PulseTableModel(QAbstractTableModel):
         """
         self.beginResetModel()
 
+        # Clear previous dataframe if existed
+        self.dataframe.drop(self.dataframe.index, inplace=True)
         if self.data_source.dtype == DS_IMAS_TYPE:
-            # Clear previous dataframe if existed
-            self.dataframe.drop(self.dataframe.index, inplace=True)
             for key, value in document.items():
                 self.add_row([value['pulse'], value['run']])
 
         elif self.data_source.dtype == DS_CODAC_TYPE:
-            # Clear previous dataframe if existed
-            self.dataframe.drop(self.dataframe.index, inplace=True)
             for key, value in document.items():
                 self.add_row(
                     [key, value['description'], value['status'], value['timeFrom'], value['timeTo'], value['duration']])
+        elif self.data_source.dtype == DS_CSV_TYPE:
+            for key, _ in document.items():
+                self.add_row([key])
 
         self.endResetModel()
 

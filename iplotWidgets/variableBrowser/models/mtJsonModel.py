@@ -5,7 +5,7 @@ import re
 
 from iplotDataAccess.appDataAccess import AppDataAccess
 from iplotDataAccess.dataAccess import DataSource
-from iplotDataAccess.dataSourceConfig import DS_CODAC_TYPE, DS_IMAS_TYPE
+from iplotDataAccess.dataSourceConfig import DS_CODAC_TYPE, DS_IMAS_TYPE, DS_CSV_TYPE
 from iplotWidgets.variableBrowser.tools.converters import parse_groups_to_dict, parse_vars_to_dict
 
 
@@ -48,6 +48,8 @@ class VariableModel(QAbstractItemModel):
         document = AppDataAccess.da.get_cbs_list(data_source_name=self.data_source.name)
         if self.data_source.dtype == DS_CODAC_TYPE:
             document = parse_groups_to_dict(document)
+        elif self.data_source.dtype == DS_CSV_TYPE:
+            document = parse_groups_to_dict(document)
 
         self.load_document(document)
 
@@ -61,7 +63,8 @@ class VariableModel(QAbstractItemModel):
             self.root_item = ImasVarItem.load(document)
         elif self.data_source.dtype == DS_CODAC_TYPE:
             self.root_item = UdaVarItem.load(document, UdaVarItem(data_type="folder"), consulted=True)
-
+        elif self.data_source.dtype == DS_CSV_TYPE:
+            self.root_item = CsvVarItem.load(document)
         self.root_item.check_folder(self.data_source.name)
         self.endResetModel()
 
@@ -463,6 +466,53 @@ class ImasVarItem(VarItem):
         for key, val in value.items():
             if key in ['documentation', 'data_type', 'units', 'dimension']:
                 continue
+            path.append(key)
+            child = cls.load(val, root_item, path)
+            child.key = key
+            child.path = '/'.join(path)
+            root_item.append_child(child)
+            path.pop()
+
+        return root_item
+
+
+class CsvVarItem(VarItem):
+    """A Json item corresponding to a line in QTreeView"""
+
+    def __init__(self, parent: 'CsvVarItem' = None, key='', unit='', description='', data_type='', dimension='0'):
+        super().__init__(parent, key, unit, description, data_type, dimension)
+        self.struct = 0
+
+    def is_folder(self):
+        return self.data_type == "structure" or self.data_type == "struct_array"
+
+    def get_tree_variable_str(self):
+        return f'{self.key} ({self.data_type})'
+
+    def get_table_variable_str(self):
+        begin = ""
+        if self.parent and self.parent.key != "":
+            begin = self.parent.get_table_variable_str() + "-"
+        dimension = '[0' + ",0" * (int(self.dimension) - 1) + "]" if self.dimension != '0' else ''
+        struct = '[0]' if self.struct != 0 else ""
+        result = begin + self.key + dimension + struct
+
+        return result
+
+    def get_folder_str(self):
+        struct = f"(i{self.struct})" if self.struct > 0 else ""
+        return f'{self.key}{struct}'
+
+    @classmethod
+    def load(cls, value: Union[List, Dict], parent: "CsvVarItem" = None, path: object = None,
+             consulted: object = False) -> "CsvVarItem":
+        if path is None:
+            path = []
+        root_item = CsvVarItem(parent)
+        if not isinstance(value, dict) or value == {}:
+            return root_item
+
+        for key, val in value.items():
             path.append(key)
             child = cls.load(val, root_item, path)
             child.key = key

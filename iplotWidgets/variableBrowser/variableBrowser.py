@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox
 from PySide6.QtCore import Qt, Signal
 
 from iplotDataAccess.dataAccess import DataSource
-from iplotDataAccess.dataSourceConfig import DS_CODAC_TYPE
+from iplotDataAccess.dataSourceConfig import DS_CODAC_TYPE, DS_CSV_TYPE
 from iplotWidgets.variableBrowser.variableTree import VariableTree
 from iplotWidgets.variableBrowser.variableTable import VariableTable
 from iplotWidgets.variableBrowser.tools.converters import parse_search_to_dict, parse_groups_to_dict
@@ -199,6 +199,8 @@ class VariableBrowser(QWidget):
             self.progress_bar.setValue(80)
             time.sleep(0.4)
             if data_source.dtype == DS_CODAC_TYPE:
+                document = parse_groups_to_dict(document)
+            elif data_source.dtype == DS_CSV_TYPE:
                 document = parse_groups_to_dict(document)
             self.tree.models[data_source.name].load_document(document)
 
