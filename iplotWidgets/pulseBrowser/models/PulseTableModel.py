@@ -23,6 +23,8 @@ class PulseTableModel(QAbstractTableModel):
         elif self.data_source.dtype == DS_CODAC_TYPE:
             self.dataframe: pd.DataFrame = pd.DataFrame(
                 columns=['Pulse', 'Description', 'Status', 'Time From', 'Time To', 'Duration'])
+        else:
+            self.dataframe: pd.DataFrame = pd.DataFrame()
         self._current_page: int = 0
         self._page_size: int = 20
 
