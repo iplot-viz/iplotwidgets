@@ -28,12 +28,14 @@ class VariableBrowser(QWidget):
         self.setAcceptDrops(True)
         self.setGeometry(
             QStyle.alignedRect(
-                Qt.LeftToRight,
-                Qt.AlignCenter,
+                Qt.LayoutDirection.LeftToRight,
+                Qt.AlignmentFlag.AlignCenter,
                 self.size(),
                 QGuiApplication.primaryScreen().availableGeometry(),
             ),
         )
+
+        self.setWindowTitle("Variable search")
         self.tree = VariableTree()
         self.tableView = VariableTable()
         self.searchbar = QLineEdit()
@@ -70,7 +72,7 @@ class VariableBrowser(QWidget):
         self.sources_combo.currentTextChanged.connect(self.change_model)
 
         # Splitter
-        self.splitter = QSplitter(Qt.Horizontal)
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.splitter.addWidget(self.tree)
         self.splitter.addWidget(self.tableView)
         self.splitter.setStretchFactor(0, 1)
@@ -97,7 +99,7 @@ class VariableBrowser(QWidget):
         mid_h_layout.addWidget(self.splitter)
         main_v_layout = QVBoxLayout()
         main_v_layout.addLayout(top_v_layout)
-        self.add_layout = main_v_layout.addLayout(mid_h_layout)
+        main_v_layout.addLayout(mid_h_layout)
         main_v_layout.addLayout(bot_v_layout)
         self.setLayout(main_v_layout)
 
