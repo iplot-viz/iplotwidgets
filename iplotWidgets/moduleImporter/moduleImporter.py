@@ -1,5 +1,3 @@
-from typing import List
-
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QHBoxLayout, QVBoxLayout, QMessageBox
 from PySide6.QtCore import Qt, Signal
@@ -24,12 +22,13 @@ class ModuleImporter(QWidget):
         self.setAcceptDrops(True)
         self.setGeometry(
             QStyle.alignedRect(
-                Qt.LeftToRight,
-                Qt.AlignCenter,
+                Qt.LayoutDirection.LeftToRight,
+                Qt.AlignmentFlag.AlignCenter,
                 self.size(),
                 QGuiApplication.primaryScreen().availableGeometry(),
             ),
         )
+        self.setWindowTitle("Load new modules")
         self.parser = Parser()
 
         if not self.parser.has_access_to_config():
@@ -114,7 +113,7 @@ class ModuleImporter(QWidget):
 
 def show_msg(message):
     box = QMessageBox()
-    box.setIcon(QMessageBox.Critical)
+    box.setIcon(QMessageBox.Icon.Critical)
     box.setWindowTitle("Error")
     box.setText(message)
     box.exec_()
