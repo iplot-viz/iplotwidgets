@@ -38,8 +38,8 @@ class PulseBrowser(QWidget):
             self.setAcceptDrops(True)
             self.setGeometry(
                 QStyle.alignedRect(
-                    Qt.LeftToRight,
-                    Qt.AlignCenter,
+                    Qt.LayoutDirection.LeftToRight,
+                    Qt.AlignmentFlag.AlignCenter,
                     self.size(),
                     QGuiApplication.primaryScreen().availableGeometry(),
                 ),
@@ -114,7 +114,7 @@ class PulseBrowser(QWidget):
 
             main_v_layout = QVBoxLayout()
             main_v_layout.addLayout(top_v_layout)
-            self.add_layout = main_v_layout.addLayout(mid_v_layout)
+            main_v_layout.addLayout(mid_v_layout)
             main_v_layout.addLayout(bot_v_layout)
             self.setLayout(main_v_layout)
 

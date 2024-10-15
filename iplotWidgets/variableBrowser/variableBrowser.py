@@ -28,8 +28,8 @@ class VariableBrowser(QWidget):
         self.setAcceptDrops(True)
         self.setGeometry(
             QStyle.alignedRect(
-                Qt.LeftToRight,
-                Qt.AlignCenter,
+                Qt.LayoutDirection.LeftToRight,
+                Qt.AlignmentFlag.AlignCenter,
                 self.size(),
                 QGuiApplication.primaryScreen().availableGeometry(),
             ),
@@ -70,7 +70,7 @@ class VariableBrowser(QWidget):
         self.sources_combo.currentTextChanged.connect(self.change_model)
 
         # Splitter
-        self.splitter = QSplitter(Qt.Horizontal)
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.splitter.addWidget(self.tree)
         self.splitter.addWidget(self.tableView)
         self.splitter.setStretchFactor(0, 1)
@@ -97,7 +97,7 @@ class VariableBrowser(QWidget):
         mid_h_layout.addWidget(self.splitter)
         main_v_layout = QVBoxLayout()
         main_v_layout.addLayout(top_v_layout)
-        self.add_layout = main_v_layout.addLayout(mid_h_layout)
+        main_v_layout.addLayout(mid_h_layout)
         main_v_layout.addLayout(bot_v_layout)
         self.setLayout(main_v_layout)
 
@@ -139,22 +139,30 @@ class VariableBrowser(QWidget):
             pattern = ''
         data_source = self.get_current_source()
         self.tree.models['SEARCH'].data_source = data_source
-        found = AppDataAccess.da.get_var_list(data_source_name=data_source.name, pattern=pattern)
+        try:
+            found = AppDataAccess.da.get_var_list(data_source_name=data_source.name, pattern=pattern)
 
-        if found:
-            self.progress_bar.setFormat("Loading variables into the model")
-            self.progress_bar.setValue(80)
-            if data_source.dtype == DS_CODAC_TYPE:
-                found = parse_search_to_dict(found)
-            self.tree.models['SEARCH'].load_document(found)
-            time.sleep(0.4)
-        else:
+            if found:
+                self.progress_bar.setFormat("Loading variables into the model")
+                self.progress_bar.setValue(80)
+                if data_source.dtype == DS_CODAC_TYPE:
+                    found = parse_search_to_dict(found)
+                self.tree.models['SEARCH'].load_document(found)
+                time.sleep(0.4)
+            else:
+                self.progress_bar.setStyleSheet("QProgressBar::chunk {background-color: #FF6666;}")
+                self.progress_bar.setFormat("Empty model")
+                self.progress_bar.setValue(80)
+                self.progress_bar.setStyleSheet("")
+                time.sleep(2)
+                self.tree.models['SEARCH'].load_document({})
+        except Exception as e:
+            logger.error(f"Exception {e} while triying to load new module")
             self.progress_bar.setStyleSheet("QProgressBar::chunk {background-color: #FF6666;}")
-            self.progress_bar.setFormat("Empty model")
-            self.progress_bar.setValue(80)
+            self.progress_bar.setFormat(f"Error while loading module")
+            self.progress_bar.setValue(90)
             self.progress_bar.setStyleSheet("")
             time.sleep(2)
-            self.tree.models['SEARCH'].load_document({})
 
         # Search done
         self.search_btn.setEnabled(True)
