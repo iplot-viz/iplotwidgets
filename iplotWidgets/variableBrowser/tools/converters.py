@@ -92,7 +92,9 @@ def parse_search_to_dict(lines: List[str]) -> dict:
             if ix == len(list_line) - 1:
                 cur_dict = cur_dict.setdefault('-'.join(list_line).replace('-:', ':', 1), '')
             elif list_line[ix][0] == ':':
-                cur_dict = cur_dict.setdefault('-'.join(list_line[:ix + 1]).replace('-:', ':'), {})
+                temp = '-'.join(list_line[:ix + 1]).replace('-:', ':')
+                if cur_dict.get(temp, None) != "":
+                    cur_dict = cur_dict.setdefault(temp, {})
                 cur_dict = cur_dict.setdefault('-'.join(list_line).replace('-:', ':', 1), '')
                 break
             else:
