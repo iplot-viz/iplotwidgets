@@ -50,6 +50,7 @@ class PulseBrowser(QWidget):
             self.table.doubleClicked.connect(self.info_pulse)
             self.searchbar = QLineEdit()
             self.searchbar.textChanged.connect(self.update_display)
+            self.searchbar.returnPressed.connect(self.search)
 
             self.path_input = QLineEdit()
             self.add_to_mint_btn = QPushButton('Add to MINT')

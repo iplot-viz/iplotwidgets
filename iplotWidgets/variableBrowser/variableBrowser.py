@@ -40,6 +40,7 @@ class VariableBrowser(QWidget):
         self.tableView = VariableTable()
         self.searchbar = QLineEdit()
         self.searchbar.textChanged.connect(self.update_display)
+        self.searchbar.returnPressed.connect(self.search)
 
         self.path_input = QLineEdit()
         self.add_to_list_btn = QPushButton('Add to list')
