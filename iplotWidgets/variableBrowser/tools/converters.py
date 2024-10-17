@@ -123,7 +123,6 @@ def parse_imas_pulses(lines: List) -> dict:
 
     for line in lines:
 
-        print("found a new line %s", line)
         match = re.search(r'ids_(\d{10})\.tree', line)
         if match:
             digits = match.group(1)
