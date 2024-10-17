@@ -122,13 +122,18 @@ def parse_imas_pulses(lines: List) -> dict:
     run = ''
 
     for line in lines:
+
+        print("found a new line %s", line)
         match = re.search(r'ids_(\d{10})\.tree', line)
         if match:
             digits = match.group(1)
             pulse = digits[:6]
             run = digits[6:]
-
-        result[line] = {'pulse': pulse,
-                        'run': run}
+        else:
+            res = line.split("_")
+            if len(res) == 2:
+                pulse = res[0]
+                run = res[1]
+        result[line] = {'pulse': pulse, 'run': run}
 
     return result
