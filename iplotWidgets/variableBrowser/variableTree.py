@@ -8,7 +8,7 @@ from iplotWidgets.variableBrowser.models.mtJsonModel import VariableModel
 class VariableTree(QTreeView):
     def __init__(self):
         super().__init__()
-        self.models = {'SEARCH': VariableModel(data_source=AppDataAccess.da.defaultds, search=True)}
+        self.models = {'SEARCH': VariableModel(data_source=AppDataAccess.da.default_ds, search=True)}
         self.setSelectionMode(self.selectionMode().ExtendedSelection)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.open_menu)
@@ -22,7 +22,7 @@ class VariableTree(QTreeView):
         self.setDropIndicatorShown(True)
         self.setDragDropMode(QAbstractItemView.InternalMove)
         self.expanded.connect(self.expand)
-        self.load_model(AppDataAccess.da.defaultds)
+        self.load_model(AppDataAccess.da.default_ds)
         self.dragged_item = None
 
     def get_model(self) -> VariableModel:

@@ -15,16 +15,16 @@ class PulseTable(QTableView):
         self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.setColumnWidth(0, 100)
 
-        self.models = {'SEARCH': PulseTableModel(data_source=AppDataAccess.da.defaultds)}
+        self.models = {'SEARCH': PulseTableModel(data_source=AppDataAccess.da.default_ds)}
         self.current_model_name = ''
 
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.setMouseTracking(True)
         self.setAlternatingRowColors(True)
 
-        self.load_model(AppDataAccess.da.defaultds)
+        self.load_model(AppDataAccess.da.default_ds)
 
-        self.adjust_columns(AppDataAccess.da.defaultds)
+        self.adjust_columns(AppDataAccess.da.default_ds)
 
     def adjust_columns(self, data_source):
         # Adjust
