@@ -1,5 +1,6 @@
 import time
 
+import pandas as pd
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox, QHBoxLayout, QVBoxLayout, \
     QProgressBar, QSplitter
@@ -48,6 +49,8 @@ class VariableBrowser(QWidget):
         self.clear_btn = QPushButton('Clear')
         self.clear_btn.clicked.connect(self.tableView.clear_table)
         self.finish_btn = QPushButton('Add to table')
+        self.main_finish_btn = QPushButton('Add to main table')
+        self.main_finish_btn.clicked.connect(self.add_to_main_table)
 
         self.search_btn = QPushButton('Search')
         self.search_btn.clicked.connect(self.search)
@@ -89,19 +92,18 @@ class VariableBrowser(QWidget):
         top_v_layout.addLayout(top_h_layout)
         top_v_layout.addWidget(self.progress_bar)
 
-        bot_v_layout = QVBoxLayout()
         bot_h_layout = QHBoxLayout()
         bot_h_layout.addWidget(self.add_to_list_btn)
+        bot_h_layout.addWidget(self.main_finish_btn)
         bot_h_layout.addWidget(self.clear_btn)
-        bot_v_layout.addLayout(bot_h_layout)
-        bot_v_layout.addWidget(self.finish_btn)
+        bot_h_layout.addWidget(self.finish_btn)
 
         mid_h_layout = QHBoxLayout()
         mid_h_layout.addWidget(self.splitter)
         main_v_layout = QVBoxLayout()
         main_v_layout.addLayout(top_v_layout)
         main_v_layout.addLayout(mid_h_layout)
-        main_v_layout.addLayout(bot_v_layout)
+        main_v_layout.addLayout(bot_h_layout)
         self.setLayout(main_v_layout)
 
         self.finish_btn.clicked.connect(self.finish)
@@ -183,6 +185,17 @@ class VariableBrowser(QWidget):
             if not ix.has_child() and [self.get_current_source().name, value] not in data_list:
                 self.tableView.model.add_row([self.get_current_source().name, value])
         self.tree.clearSelection()
+
+    def add_to_main_table(self):
+        dataframe = pd.DataFrame(columns=['DS', 'Variable'])
+        indexes = self.tree.selectedIndexes()
+        indexes = [ix.internalPointer() for ix in indexes]
+        for ix in indexes:
+            value = ix.get_table_variable_str()
+            if not ix.has_child():
+                dataframe.loc[len(dataframe)] = [self.get_current_source().name, value]
+        self.tree.clearSelection()
+        self.cmd_finish.emit(dataframe)
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Return:
