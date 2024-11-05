@@ -6,8 +6,7 @@ from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox
     QProgressBar, QLabel
 from PySide6.QtCore import Qt, Signal
 
-from iplotDataAccess.dataAccess import DataSource
-from iplotDataAccess.dataSourceConfig import DS_CODAC_TYPE
+from iplotDataAccess.dataSource import DataSource
 from iplotWidgets.pulseBrowser.PulseTable import PulseTable
 from iplotWidgets.variableBrowser.tools.converters import parse_pulses, parse_imas_pulses
 from iplotLogging import setupLogger as setupLog
@@ -191,7 +190,7 @@ class PulseBrowser(QWidget):
         found = None
         columns = []
 
-        if data_source.dtype == DS_CODAC_TYPE:
+        if data_source.source_type == "CODAC_UDA":
             location = ''
             folder = ''
             pulse = ''
@@ -249,7 +248,7 @@ class PulseBrowser(QWidget):
             found = AppDataAccess.da.get_pulse_list(data_source_name=data_source.name, pattern=pattern)
             columns = ['Pulse', 'Description', 'Status', 'Time From', 'Time To', 'Duration']
 
-        elif data_source.dtype == 'IMAS_UDA':
+        elif data_source.source_type == 'IMAS_UDA':
             # Check if the text is a string of digits and if so, check if there are 6 digits or 4 digits
             if text.isdigit() and len(text) == 6:
                 pulse_number = text
@@ -272,9 +271,9 @@ class PulseBrowser(QWidget):
         if found:
             self.progress_bar.setFormat("Loading pulses into the model")
             self.progress_bar.setValue(80)
-            if data_source.dtype == DS_CODAC_TYPE:
+            if data_source.source_type == "CODAC_UDA":
                 found = parse_pulses(found)
-            elif data_source.dtype == 'IMAS_UDA':
+            elif data_source.source_type == 'IMAS_UDA':
                 found = parse_imas_pulses(found)
             search_model.load_document(found)
             self.update_page_size()
@@ -305,14 +304,12 @@ class PulseBrowser(QWidget):
             time.sleep(0.4)
 
             data_source = self.get_current_source()
-            document = AppDataAccess.da.get_pulse_list(data_source_name=data_source.name)
+            document = data_source.get_pulses()
 
             self.progress_bar.setFormat("Loading pulses into the model")
             self.progress_bar.setValue(80)
             time.sleep(0.4)
-            if data_source.dtype == DS_CODAC_TYPE:
-                document = parse_pulses(document)
-            elif data_source.dtype == 'IMAS_UDA':
+            if data_source.source_type == 'IMAS_UDA':
                 document = parse_imas_pulses(document)
             model = self.table.get_current_model()
             model.load_document(document)
@@ -340,6 +337,6 @@ class PulseBrowser(QWidget):
             self.add_pulse()
 
     def info_pulse(self, index):
-        if self.get_current_source().dtype == 'IMAS_UDA':
+        if self.get_current_source().source_type == 'IMAS_UDA':
             row = index.row()
             self.table.get_pulse_info(row)

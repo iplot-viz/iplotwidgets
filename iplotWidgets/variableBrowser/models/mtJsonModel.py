@@ -4,8 +4,7 @@ from PySide6.QtCore import QAbstractItemModel, QModelIndex, QObject, Qt, QSize, 
 import re
 
 from iplotDataAccess.appDataAccess import AppDataAccess
-from iplotDataAccess.dataAccess import DataSource
-from iplotDataAccess.dataSourceConfig import DS_CODAC_TYPE, DS_IMAS_TYPE
+from iplotDataAccess.dataSource import DataSource
 from iplotWidgets.variableBrowser.tools.converters import parse_groups_to_dict, parse_vars_to_dict
 
 
@@ -21,16 +20,16 @@ class VariableModel(QAbstractItemModel):
         self.clear()
 
     def supportedDropActions(self):
-        return Qt.CopyAction | Qt.MoveAction
+        return Qt.DropAction.CopyAction | Qt.DropAction.MoveAction
 
     def flags(self, index):
         if not index.isValid():
-            return Qt.ItemIsEnabled
+            return Qt.ItemFlag.ItemIsEnabled
 
         if index.internalPointer().has_child():
-            return Qt.ItemIsEnabled
+            return Qt.ItemFlag.ItemIsEnabled
         else:
-            return Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsDragEnabled | Qt.ItemIsDropEnabled
+            return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsDropEnabled
 
     def mimeTypes(self):
         return ['text/xml']
@@ -45,10 +44,7 @@ class VariableModel(QAbstractItemModel):
         """Load model from zero
         """
 
-        document = AppDataAccess.da.get_cbs_list(data_source_name=self.data_source.name)
-        if self.data_source.dtype == DS_CODAC_TYPE:
-            document = parse_groups_to_dict(document)
-
+        document = self.data_source.get_cbs_dict()
         self.load_document(document)
 
     def load_document(self, document: dict):
@@ -57,28 +53,27 @@ class VariableModel(QAbstractItemModel):
 
         self.beginResetModel()
 
-        if self.data_source.dtype == DS_IMAS_TYPE:
+        if self.data_source.source_type == "DS_IMAS_TYPE":
             self.root_item = ImasVarItem.load(document)
-        elif self.data_source.dtype == DS_CODAC_TYPE:
+        elif self.data_source.source_type == "CODAC_UDA":
             self.root_item = UdaVarItem.load(document, UdaVarItem(data_type="folder"), consulted=True)
 
-        self.root_item.check_folder(self.data_source.name)
+        self.root_item.check_folder(self.data_source)
         self.endResetModel()
 
     def expand(self, item):
-        if self.data_source.dtype != DS_CODAC_TYPE:
+        if self.data_source.source_type != "CODAC_UDA":
             return
         if item.consulted:
             return
         if not self.search:
             path = item.path
             pattern = f'{path}:.*'
-            data = AppDataAccess.da.get_var_list(data_source_name=self.data_source.name, pattern=pattern)
+            data = self.data_source.get_var_dict(pattern=pattern, path=path)
             if data:
-                data_parsed = parse_vars_to_dict(data, path)
-                item.load(data_parsed, item, consulted=True)
+                item.load(data, item, consulted=True)
 
-        item.check_folder(self.data_source.name)
+        item.check_folder(self.data_source)
 
     def data(self, index: Union[QModelIndex, QPersistentModelIndex], role: int = ...) -> Any:
         """Override from QAbstractItemModel
@@ -91,18 +86,18 @@ class VariableModel(QAbstractItemModel):
 
         item = index.internalPointer()  # type: VarItem
 
-        if role == Qt.DisplayRole:
+        if role == Qt.ItemDataRole.DisplayRole:
             if item.is_folder():
                 return item.get_folder_str()
             else:
                 return item.get_tree_variable_str()
-        elif role == Qt.EditRole:
+        elif role == Qt.ItemDataRole.EditRole:
             if index.column() == 1:
                 return item.key
-        elif role == Qt.SizeHintRole:
+        elif role == Qt.ItemDataRole.SizeHintRole:
             "giving size hint"
             return QSize(1000, 20)
-        elif role == Qt.DecorationRole:
+        elif role == Qt.ItemDataRole.DecorationRole:
             if item.is_folder():
                 return QtGui.QIcon(QtGui.QPixmap("iplotWidgets/iplotWidgets/variableBrowser/icons/folder.svg"))
             else:
@@ -376,12 +371,12 @@ class UdaVarItem(VarItem):
 
         return common_parts
 
-    def check_folder(self, data_source_name):
+    def check_folder(self, data_source):
         self.consulted = True
         for child in self.children:
             if child.has_child() or child.consulted:
                 continue
-            data = AppDataAccess.da.get_var_fields(data_source_name=data_source_name, variable=child.key)
+            data = data_source.get_var_fields(variable=child.key)
 
             if not data:
                 continue

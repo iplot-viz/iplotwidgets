@@ -5,8 +5,7 @@ from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox
     QProgressBar, QSplitter
 from PySide6.QtCore import Qt, Signal
 
-from iplotDataAccess.dataAccess import DataSource
-from iplotDataAccess.dataSourceConfig import DS_CODAC_TYPE
+from iplotDataAccess.dataSource import DataSource
 from iplotWidgets.variableBrowser.variableTree import VariableTree
 from iplotWidgets.variableBrowser.variableTable import VariableTable
 from iplotWidgets.variableBrowser.tools.converters import parse_search_to_dict, parse_groups_to_dict
@@ -143,13 +142,11 @@ class VariableBrowser(QWidget):
         data_source = self.get_current_source()
         self.tree.models['SEARCH'].data_source = data_source
         try:
-            found = AppDataAccess.da.get_var_list(data_source_name=data_source.name, pattern=pattern)
+            found = data_source.get_var_dict(pattern=pattern)
 
             if found:
                 self.progress_bar.setFormat("Loading variables into the model")
                 self.progress_bar.setValue(80)
-                if data_source.dtype == DS_CODAC_TYPE:
-                    found = parse_search_to_dict(found)
                 self.tree.models['SEARCH'].load_document(found)
                 time.sleep(0.4)
             else:
@@ -204,12 +201,12 @@ class VariableBrowser(QWidget):
             time.sleep(0.4)
 
             data_source = self.get_current_source()
-            document = AppDataAccess.da.get_cbs_list(data_source_name=data_source.name)
+            document = data_source.get_cbs_list()
 
             self.progress_bar.setFormat("Loading variables into the model")
             self.progress_bar.setValue(80)
             time.sleep(0.4)
-            if data_source.dtype == DS_CODAC_TYPE:
+            if data_source.source_type == "CODAC_UDA":
                 document = parse_groups_to_dict(document)
             self.tree.models[data_source.name].load_document(document)
 
