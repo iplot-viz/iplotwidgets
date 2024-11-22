@@ -1,7 +1,7 @@
 import logging
 
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import QWidget, QStyle, QPushButton, QComboBox, QPlainTextEdit, QVBoxLayout, QHBoxLayout
+from PySide6.QtWidgets import QWidget, QStyle, QPushButton, QComboBox, QPlainTextEdit, QVBoxLayout, QHBoxLayout, QLabel
 from PySide6.QtCore import Qt, Signal
 
 
@@ -39,11 +39,14 @@ class ConsoleWidget(QWidget):
         self.severity_level = QComboBox()
         self.severity_level.addItems(['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'])
         self.severity_level.setCurrentText('WARNING')
+        self.severity_label = QLabel("Severity Level:")
+
         # Layout
         mid_v_layout = QVBoxLayout()
         mid_v_layout.addWidget(self.content)
         bot_h_layout = QHBoxLayout()
         bot_h_layout.addWidget(self.clear_button)
+        bot_h_layout.addWidget(self.severity_label, alignment=Qt.AlignmentFlag.AlignRight)
         bot_h_layout.addWidget(self.severity_level)
         main_v_layout = QVBoxLayout()
         main_v_layout.addLayout(mid_v_layout)
