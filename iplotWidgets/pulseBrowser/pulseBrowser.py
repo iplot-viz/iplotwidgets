@@ -73,7 +73,7 @@ class PulseBrowser(QWidget):
             self.progress_bar.setMaximum(100)
             self.progress_bar.hide()
 
-            self.data_sources = AppDataAccess.da.get_connected_data_sources2()
+            self.data_sources = AppDataAccess.da.get_connected_data_sources()
             self.sources_combo = QComboBox()
             for ds in self.data_sources:
                 self.sources_combo.addItem(ds.name, userData=ds)
@@ -245,17 +245,17 @@ class PulseBrowser(QWidget):
                 else:
                     pattern = ' '
 
-            found = AppDataAccess.da.get_pulse_list(data_source_name=data_source.name, pattern=pattern)
+            found = data_source.get_pulse_list(pattern=pattern)
             columns = ['Pulse', 'Description', 'Status', 'Time From', 'Time To', 'Duration']
 
         elif data_source.source_type == 'IMAS_UDA':
             # Check if the text is a string of digits and if so, check if there are 6 digits or 4 digits
             if text.isdigit() and len(text) == 6:
                 pulse_number = text
-                found = AppDataAccess.da.get_pulse_list(data_source_name=data_source.name, pulse=pulse_number)
+                found = data_source.get_pulse_list(pulse=pulse_number)
             elif text.isdigit() and len(text) == 4:
                 run_number = text
-                found = AppDataAccess.da.get_pulse_list(data_source_name=data_source.name, run=run_number)
+                found = data_source.get_pulse_list(run=run_number)
             columns = ['Pulse', 'Run']
 
         search_model = self.table.models['SEARCH']

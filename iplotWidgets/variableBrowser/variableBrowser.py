@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt, Signal
 from iplotDataAccess.dataSource import DataSource
 from iplotWidgets.variableBrowser.variableTree import VariableTree
 from iplotWidgets.variableBrowser.variableTable import VariableTable
-from iplotWidgets.variableBrowser.tools.converters import parse_search_to_dict, parse_groups_to_dict
+from iplotWidgets.variableBrowser.tools.converters import parse_groups_to_dict
 from iplotLogging import setupLogger as setupLog
 from iplotDataAccess.appDataAccess import AppDataAccess
 
@@ -64,7 +64,7 @@ class VariableBrowser(QWidget):
         self.progress_bar.setMaximum(100)
         self.progress_bar.hide()
 
-        self.data_sources = AppDataAccess.da.get_connected_data_sources2()
+        self.data_sources = AppDataAccess.da.get_connected_data_sources()
         self.sources_combo = QComboBox()
         for ds in self.data_sources:
             self.sources_combo.addItem(ds.name, userData=ds)
