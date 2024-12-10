@@ -31,10 +31,6 @@ class ModuleImporter(QWidget):
         self.setWindowTitle("Load new modules")
         self.parser = Parser()
 
-        if not self.parser.has_access_to_config():
-            show_msg("Error: You do not have the necessary permissions to modify the configuration file. "
-                     "Change the environment variable: IPLOT_PMODULE_PATH value")
-
         self.tableView = ModuleTable()
         self.searchbar = QLineEdit()
 
