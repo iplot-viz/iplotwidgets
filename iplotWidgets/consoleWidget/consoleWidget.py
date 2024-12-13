@@ -54,8 +54,9 @@ class ConsoleWidget(QWidget):
         log_format = "%(asctime)s - %(levelname)s - %(message)s"
         date_format = "%Y-%m-%d %H:%M:%S"
         self.log_handler.setFormatter(logging.Formatter(log_format, datefmt=date_format))
-        logger = logging.getLogger()
-        logger.addHandler(self.log_handler)
+        console_logger = logging.getLogger()
+        console_logger.setLevel("DEBUG")
+        console_logger.addHandler(self.log_handler)
 
     def log_emit(self, record):
         # For each severity level we define a color
