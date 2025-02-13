@@ -7,8 +7,8 @@ from PySide6.QtCore import Qt
 
 from iplotDataAccess.appDataAccess import AppDataAccess
 from iplotDataAccess.dataAccess import DataSource
-from iplotDataAccess.dataSourceConfig import DS_CODAC_TYPE, DS_IMAS_TYPE
-from iplotWidgets.variableBrowser.tools.converters import parse_pulses, parse_imas_pulses
+from iplotDataAccess.dataSourceConfig import DS_CODAC_TYPE, DS_IMAS_TYPE, DS_IMASPY_TYPE
+from iplotWidgets.variableBrowser.tools.converters import parse_pulses, parse_imas_pulses, parse_imaspy_pulses
 
 
 class PulseTableModel(QAbstractTableModel):
@@ -18,7 +18,7 @@ class PulseTableModel(QAbstractTableModel):
         super(PulseTableModel, self).__init__()
         self.data_source = data_source
 
-        if self.data_source.dtype == DS_IMAS_TYPE:
+        if self.data_source.dtype == DS_IMAS_TYPE or self.data_source.dtype == DS_IMASPY_TYPE:
             self.dataframe: pd.DataFrame = pd.DataFrame(columns=['Pulse', 'Run'])
         elif self.data_source.dtype == DS_CODAC_TYPE:
             self.dataframe: pd.DataFrame = pd.DataFrame(
@@ -71,7 +71,7 @@ class PulseTableModel(QAbstractTableModel):
 
     def get_pulse(self, row: int):
         current_row = row + self._current_page * self._page_size
-        if self.data_source.dtype == DS_IMAS_TYPE:
+        if self.data_source.dtype == DS_IMAS_TYPE or self.data_source.dtype == DS_IMASPY_TYPE:
             run = int(self.dataframe.iloc[current_row, 1])
             return self.dataframe.iloc[current_row, 0] + '/' + str(run)
         else:
@@ -103,7 +103,8 @@ class PulseTableModel(QAbstractTableModel):
 
         if self.data_source.dtype == DS_IMAS_TYPE:
             document = parse_imas_pulses(document)
-
+        elif self.data_source.dtype == DS_IMASPY_TYPE:
+            document = parse_imaspy_pulses(document)
         if self.data_source.dtype == DS_CODAC_TYPE:
             document = parse_pulses(document)
 
@@ -114,7 +115,7 @@ class PulseTableModel(QAbstractTableModel):
         """
         self.beginResetModel()
 
-        if self.data_source.dtype == DS_IMAS_TYPE:
+        if self.data_source.dtype == DS_IMAS_TYPE  or self.data_source.dtype == DS_IMASPY_TYPE:
             # Clear previous dataframe if existed
             self.dataframe.drop(self.dataframe.index, inplace=True)
             for key, value in document.items():

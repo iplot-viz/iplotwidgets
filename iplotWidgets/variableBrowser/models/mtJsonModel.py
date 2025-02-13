@@ -5,7 +5,7 @@ import re
 
 from iplotDataAccess.appDataAccess import AppDataAccess
 from iplotDataAccess.dataAccess import DataSource
-from iplotDataAccess.dataSourceConfig import DS_CODAC_TYPE, DS_IMAS_TYPE
+from iplotDataAccess.dataSourceConfig import DS_CODAC_TYPE, DS_IMAS_TYPE, DS_IMASPY_TYPE
 from iplotWidgets.variableBrowser.tools.converters import parse_groups_to_dict, parse_vars_to_dict
 
 
@@ -57,7 +57,7 @@ class VariableModel(QAbstractItemModel):
 
         self.beginResetModel()
 
-        if self.data_source.dtype == DS_IMAS_TYPE:
+        if self.data_source.dtype == DS_IMAS_TYPE or self.data_source.dtype == DS_IMASPY_TYPE:
             self.root_item = ImasVarItem.load(document)
         elif self.data_source.dtype == DS_CODAC_TYPE:
             self.root_item = UdaVarItem.load(document, UdaVarItem(data_type="folder"), consulted=True)
