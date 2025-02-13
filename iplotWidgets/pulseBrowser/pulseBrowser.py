@@ -7,9 +7,9 @@ from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox
 from PySide6.QtCore import Qt, Signal
 
 from iplotDataAccess.dataAccess import DataSource
-from iplotDataAccess.dataSourceConfig import DS_CODAC_TYPE
+from iplotDataAccess.dataSourceConfig import DS_CODAC_TYPE, DS_IMAS_TYPE, DS_IMASPY_TYPE
 from iplotWidgets.pulseBrowser.PulseTable import PulseTable
-from iplotWidgets.variableBrowser.tools.converters import parse_pulses, parse_imas_pulses
+from iplotWidgets.variableBrowser.tools.converters import parse_pulses, parse_imas_pulses, parse_imaspy_pulses
 from iplotLogging import setupLogger as setupLog
 from iplotDataAccess.appDataAccess import AppDataAccess
 
@@ -185,7 +185,6 @@ class PulseBrowser(QWidget):
         self.progress_bar.show()
         self.progress_bar.setFormat("Retrieving the variable list from the server")
         self.progress_bar.setValue(40)
-        time.sleep(0.4)
 
         data_source = self.get_current_source()
         found = None
@@ -249,14 +248,11 @@ class PulseBrowser(QWidget):
             found = AppDataAccess.da.get_pulse_list(data_source_name=data_source.name, pattern=pattern)
             columns = ['Pulse', 'Description', 'Status', 'Time From', 'Time To', 'Duration']
 
-        elif data_source.dtype == 'IMAS_UDA':
+        elif data_source.dtype == DS_IMAS_TYPE or data_source.dtype == DS_IMASPY_TYPE:
             # Check if the text is a string of digits and if so, check if there are 6 digits or 4 digits
-            if text.isdigit() and len(text) == 6:
+            if text.isdigit():
                 pulse_number = text
                 found = AppDataAccess.da.get_pulse_list(data_source_name=data_source.name, pulse=pulse_number)
-            elif text.isdigit() and len(text) == 4:
-                run_number = text
-                found = AppDataAccess.da.get_pulse_list(data_source_name=data_source.name, run=run_number)
             columns = ['Pulse', 'Run']
 
         search_model = self.table.models['SEARCH']
@@ -274,17 +270,17 @@ class PulseBrowser(QWidget):
             self.progress_bar.setValue(80)
             if data_source.dtype == DS_CODAC_TYPE:
                 found = parse_pulses(found)
-            elif data_source.dtype == 'IMAS_UDA':
+            elif data_source.dtype == DS_IMAS_TYPE:
                 found = parse_imas_pulses(found)
+            elif data_source.dtype == DS_IMASPY_TYPE:
+                found = parse_imaspy_pulses(found)
             search_model.load_document(found)
             self.update_page_size()
-            time.sleep(0.4)
         else:
             self.progress_bar.setStyleSheet("QProgressBar::chunk {background-color: #FF6666;}")
             self.progress_bar.setFormat("Empty model")
             self.progress_bar.setValue(80)
             self.progress_bar.setStyleSheet("")
-            time.sleep(2)
             search_model.load_document({})
 
         self.update_page_label()
@@ -293,7 +289,6 @@ class PulseBrowser(QWidget):
         self.search_btn.setEnabled(True)
         self.progress_bar.setFormat("Finished")
         self.progress_bar.setValue(100)
-        time.sleep(0.4)
         self.progress_bar.hide()
 
     def refresh(self):
@@ -302,18 +297,18 @@ class PulseBrowser(QWidget):
             self.progress_bar.show()
             self.progress_bar.setFormat("Retrieving the pulse list from the server")
             self.progress_bar.setValue(40)
-            time.sleep(0.4)
 
             data_source = self.get_current_source()
             document = AppDataAccess.da.get_pulse_list(data_source_name=data_source.name)
 
             self.progress_bar.setFormat("Loading pulses into the model")
             self.progress_bar.setValue(80)
-            time.sleep(0.4)
             if data_source.dtype == DS_CODAC_TYPE:
                 document = parse_pulses(document)
-            elif data_source.dtype == 'IMAS_UDA':
+            elif data_source.dtype == DS_IMAS_TYPE:
                 document = parse_imas_pulses(document)
+            elif data_source.dtype == DS_IMASPY_TYPE:
+                document = parse_imaspy_pulses(document)
             model = self.table.get_current_model()
             model.load_document(document)
             self.update_page_size()
@@ -322,7 +317,6 @@ class PulseBrowser(QWidget):
             self.refresh_btn.setEnabled(True)
             self.progress_bar.setFormat("Finished")
             self.progress_bar.setValue(100)
-            time.sleep(0.4)  # Progress bar completed
             self.progress_bar.hide()
 
         except Exception as e:
@@ -331,7 +325,6 @@ class PulseBrowser(QWidget):
             self.progress_bar.setStyleSheet("QProgressBar::chunk {background-color: #FF6666;}")
             self.progress_bar.setFormat(type(e).__name__ + " " + str(e))
             self.progress_bar.setValue(100)
-            time.sleep(3)
             self.progress_bar.setStyleSheet("")
             self.progress_bar.hide()
 
@@ -340,6 +333,8 @@ class PulseBrowser(QWidget):
             self.add_pulse()
 
     def info_pulse(self, index):
-        if self.get_current_source().dtype == 'IMAS_UDA':
+        if self.get_current_source().dtype == DS_IMAS_TYPE or self.get_current_source().dtype == DS_IMASPY_TYPE:
             row = index.row()
+            print("Getting pulse info")
             self.table.get_pulse_info(row)
+
