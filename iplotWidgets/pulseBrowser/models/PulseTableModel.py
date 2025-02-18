@@ -94,9 +94,6 @@ class PulseTableModel(QAbstractTableModel):
         """ Load model from zero """
         document = self.data_source.get_pulses()
 
-        if self.data_source.source_type == "DS_IMAS_TYPE":
-            document = parse_imas_pulses(document)
-
         self.load_document(document)
 
     def load_document(self, new_df: DataFrame) -> None:
