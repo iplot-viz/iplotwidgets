@@ -18,8 +18,10 @@ class PulseTableModel(QAbstractTableModel):
         super(PulseTableModel, self).__init__()
         self.data_source = data_source
 
-        if self.data_source.dtype == DS_IMAS_TYPE or self.data_source.dtype == DS_IMASPY_TYPE:
-            self.dataframe: pd.DataFrame = pd.DataFrame(columns=['Pulse', 'Run'])
+        if self.data_source.dtype == DS_IMAS_TYPE:
+            self.dataframe: pd.DataFrame = pd.DataFrame(columns=["Pulse", "Run"])
+        elif self.data_source.dtype == DS_IMASPY_TYPE:
+            self.dataframe: pd.DataFrame = pd.DataFrame(columns=["Pulse", "Run", "workflow", "ip","b0", "fuelling", "confinement","ref_name", "date"])
         elif self.data_source.dtype == DS_CODAC_TYPE:
             self.dataframe: pd.DataFrame = pd.DataFrame(
                 columns=['Pulse', 'Description', 'Status', 'Time From', 'Time To', 'Duration'])
@@ -105,7 +107,7 @@ class PulseTableModel(QAbstractTableModel):
             document = parse_imas_pulses(document)
         elif self.data_source.dtype == DS_IMASPY_TYPE:
             document = parse_imaspy_pulses(document)
-        if self.data_source.dtype == DS_CODAC_TYPE:
+        elif self.data_source.dtype == DS_CODAC_TYPE:
             document = parse_pulses(document)
 
         self.load_document(document)
@@ -115,11 +117,16 @@ class PulseTableModel(QAbstractTableModel):
         """
         self.beginResetModel()
 
-        if self.data_source.dtype == DS_IMAS_TYPE  or self.data_source.dtype == DS_IMASPY_TYPE:
+        if self.data_source.dtype == DS_IMAS_TYPE:
             # Clear previous dataframe if existed
             self.dataframe.drop(self.dataframe.index, inplace=True)
             for key, value in document.items():
                 self.add_row([value['pulse'], value['run']])
+        if self.data_source.dtype == DS_IMASPY_TYPE:
+            # Clear previous dataframe if existed
+            self.dataframe.drop(self.dataframe.index, inplace=True)
+            for key, value in document.items():
+                self.add_row([value['pulse'], value['run'], value['workflow'], value['ip'], value['b0'],value['fuelling'],value['confinement'], value['ref_name'], value['date']])
 
         elif self.data_source.dtype == DS_CODAC_TYPE:
             # Clear previous dataframe if existed
@@ -134,8 +141,11 @@ class PulseTableModel(QAbstractTableModel):
         pulse = int(self.dataframe.iloc[row, 0])
         run = int(self.dataframe.iloc[row, 1])
         info = AppDataAccess.da.get_pulse_info(data_source_name=self.data_source.name, pulse=pulse, run=run)
-
+        print("====================================================")
+        print(f"pulse = {pulse} run={run}")
+        print("====================================================")
         print(info)
+        print("====================================================")
 
     @staticmethod
     def format_duration(duration: pd.Timedelta) -> str:

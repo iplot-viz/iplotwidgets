@@ -117,15 +117,7 @@ def parse_pulses(lines: List) -> dict:
 
 
 def parse_imaspy_pulses(lines: List) -> dict:
-    result = dict()
-    for dbname, dvs in lines:
-        for dv, dbbackends in dvs:
-            for backend, dbs in dbbackends:
-                for pulse, runs in sorted(dbs.items()):
-                    for r in runs:
-                        result[f"{pulse}{r[1]}"] = {'pulse': str(pulse),
-                            'run': str(r[1])}
-    return result
+    return lines
 
 def parse_imas_pulses(lines: List) -> dict:
     result = dict()

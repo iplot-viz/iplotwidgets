@@ -248,12 +248,16 @@ class PulseBrowser(QWidget):
             found = AppDataAccess.da.get_pulse_list(data_source_name=data_source.name, pattern=pattern)
             columns = ['Pulse', 'Description', 'Status', 'Time From', 'Time To', 'Duration']
 
-        elif data_source.dtype == DS_IMAS_TYPE or data_source.dtype == DS_IMASPY_TYPE:
+        elif data_source.dtype == DS_IMAS_TYPE:
             # Check if the text is a string of digits and if so, check if there are 6 digits or 4 digits
             if text.isdigit():
                 pulse_number = text
                 found = AppDataAccess.da.get_pulse_list(data_source_name=data_source.name, pulse=pulse_number)
             columns = ['Pulse', 'Run']
+        elif data_source.dtype == DS_IMASPY_TYPE:
+            pulse_number = text
+            found = AppDataAccess.da.get_pulse_list(data_source_name=data_source.name, pulse=pulse_number)
+            columns = ['Pulse', 'Run', 'workflow','ip','b0','fuelling','confinement','ref_name', "date"]
 
         search_model = self.table.models['SEARCH']
         # If the type of data source has changed and a search is made, the SEARCH MODEL dataframe must be updated
