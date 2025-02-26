@@ -8,7 +8,6 @@ from PySide6.QtCore import Qt, Signal
 from iplotDataAccess.dataSource import DataSource
 from iplotWidgets.variableBrowser.variableTree import VariableTree
 from iplotWidgets.variableBrowser.variableTable import VariableTable
-from iplotWidgets.variableBrowser.tools.converters import parse_groups_to_dict
 from iplotLogging import setupLogger as setupLog
 from iplotDataAccess.appDataAccess import AppDataAccess
 
@@ -201,13 +200,10 @@ class VariableBrowser(QWidget):
             time.sleep(0.4)
 
             data_source = self.get_current_source()
-            document = data_source.get_cbs_list()
-
+            document = data_source.get_cbs_dict()
             self.progress_bar.setFormat("Loading variables into the model")
             self.progress_bar.setValue(80)
             time.sleep(0.4)
-            if data_source.source_type == "CODAC_UDA":
-                document = parse_groups_to_dict(document)
             self.tree.models[data_source.name].load_document(document)
 
             self.refresh_btn.setEnabled(True)

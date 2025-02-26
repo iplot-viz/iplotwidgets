@@ -3,9 +3,7 @@ from PySide6 import QtGui
 from PySide6.QtCore import QAbstractItemModel, QModelIndex, QObject, Qt, QSize, QPersistentModelIndex
 import re
 
-from iplotDataAccess.appDataAccess import AppDataAccess
 from iplotDataAccess.dataSource import DataSource
-from iplotWidgets.variableBrowser.tools.converters import parse_groups_to_dict, parse_vars_to_dict
 
 
 class VariableModel(QAbstractItemModel):

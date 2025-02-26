@@ -8,7 +8,6 @@ from PySide6.QtCore import Qt, Signal
 
 from iplotDataAccess.dataSource import DataSource
 from iplotWidgets.pulseBrowser.PulseTable import PulseTable
-from iplotWidgets.variableBrowser.tools.converters import parse_pulses, parse_imas_pulses
 from iplotLogging import setupLogger as setupLog
 from iplotDataAccess.appDataAccess import AppDataAccess
 
@@ -187,77 +186,8 @@ class PulseBrowser(QWidget):
         time.sleep(0.4)
 
         data_source = self.get_current_source()
-        found = None
-        columns = []
-
-        if data_source.source_type == "CODAC_UDA":
-            location = ''
-            folder = ''
-            pulse = ''
-            if text.isdigit():
-                pattern = f'*:*/{text}'
-            else:
-                parts = text.split(':')
-                if len(parts) > 1:
-                    # At least, location and folder
-                    location = parts[0]
-                    rest = parts[1].split('/')
-                    if len(rest) > 1 and (rest[1].isdigit() or rest[1] == '*'):
-                        # Location, folder and pulse number specified
-                        folder = rest[0]
-                        pulse = rest[1]
-                    else:
-                        # Just location and folder
-                        folder = parts[1]
-                        pulse = ''
-                else:
-                    # Multiple cases: just location , just folder or folder with pulse
-                    ofd = parts[0].split('/')
-                    if len(ofd) > 1 and (ofd[1].isdigit() or ofd[1] == '*'):
-                        # Folder and pulse number specified
-                        location = ''
-                        folder = ofd[0] if not ofd[0].startswith('*') else ofd[0][1:]
-                        pulse = ofd[1]
-                    else:
-                        # Just location or folder
-                        if ofd[0].startswith('*') and ofd[0].endswith('*'):
-                            # Valid just for folder
-                            location = ''
-                            folder = ofd[0][1:]  # Remove the first '*'
-                            pulse = ''
-                        elif ofd[0].endswith('*'):
-                            # Valid just for location
-                            location = ofd[0]
-                            folder = ''
-                            pulse = ''
-
-                # Set pattern for search
-                if location and folder and pulse:
-                    pattern = f'{location}:{folder}/{pulse}'
-                elif location and not folder and not pulse:
-                    pattern = f'{location}:*/*'
-                elif location and folder and not pulse:
-                    pattern = f'{location}:{folder}/*'
-                elif not location and folder and pulse:
-                    pattern = f'*:{folder}/{pulse}'
-                elif not location and folder and not pulse:
-                    pattern = f'*:{folder}/*'
-                else:
-                    pattern = ' '
-
-            found = data_source.get_pulse_list(pattern=pattern)
-            columns = ['Pulse', 'Description', 'Status', 'Time From', 'Time To', 'Duration']
-
-        elif data_source.source_type == 'IMAS_UDA':
-            # Check if the text is a string of digits and if so, check if there are 6 digits or 4 digits
-            if text.isdigit() and len(text) == 6:
-                pulse_number = text
-                found = data_source.get_pulse_list(pulse=pulse_number)
-            elif text.isdigit() and len(text) == 4:
-                run_number = text
-                found = data_source.get_pulse_list(run=run_number)
-            columns = ['Pulse', 'Run']
-
+        found = data_source.search_pulses_df(text)
+        columns = found.columns
         search_model = self.table.models['SEARCH']
         # If the type of data source has changed and a search is made, the SEARCH MODEL dataframe must be updated
         if len(search_model.dataframe.columns) > len(columns):
@@ -268,13 +198,9 @@ class PulseBrowser(QWidget):
         search_model.data_source = data_source
         self.table.set_model('SEARCH')
 
-        if found:
+        if not found.empty:
             self.progress_bar.setFormat("Loading pulses into the model")
             self.progress_bar.setValue(80)
-            if data_source.source_type == "CODAC_UDA":
-                found = parse_pulses(found)
-            elif data_source.source_type == 'IMAS_UDA':
-                found = parse_imas_pulses(found)
             search_model.load_document(found)
             self.update_page_size()
             time.sleep(0.4)
@@ -283,8 +209,8 @@ class PulseBrowser(QWidget):
             self.progress_bar.setFormat("Empty model")
             self.progress_bar.setValue(80)
             self.progress_bar.setStyleSheet("")
+            search_model.load_document(found)
             time.sleep(2)
-            search_model.load_document({})
 
         self.update_page_label()
 
@@ -304,13 +230,11 @@ class PulseBrowser(QWidget):
             time.sleep(0.4)
 
             data_source = self.get_current_source()
-            document = data_source.get_pulses()
+            document = data_source.get_pulses_df()
 
             self.progress_bar.setFormat("Loading pulses into the model")
             self.progress_bar.setValue(80)
             time.sleep(0.4)
-            if data_source.source_type == 'IMAS_UDA':
-                document = parse_imas_pulses(document)
             model = self.table.get_current_model()
             model.load_document(document)
             self.update_page_size()
@@ -337,6 +261,6 @@ class PulseBrowser(QWidget):
             self.add_pulse()
 
     def info_pulse(self, index):
-        if self.get_current_source().source_type == 'IMAS_UDA':
+        if self.get_current_source().source_type == 'DS_IMAS_TYPE':
             row = index.row()
             self.table.get_pulse_info(row)

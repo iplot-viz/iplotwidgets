@@ -6,9 +6,7 @@ from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelInd
 from PySide6.QtCore import Qt
 from pandas.core.interchange.dataframe_protocol import DataFrame
 
-from iplotDataAccess.appDataAccess import AppDataAccess
 from iplotDataAccess.dataSource import DataSource
-from iplotWidgets.variableBrowser.tools.converters import parse_pulses, parse_imas_pulses
 
 
 class PulseTableModel(QAbstractTableModel):
@@ -92,7 +90,7 @@ class PulseTableModel(QAbstractTableModel):
 
     def load(self) -> None:
         """ Load model from zero """
-        document = self.data_source.get_pulses()
+        document = self.data_source.get_pulses_df()
 
         self.load_document(document)
 
