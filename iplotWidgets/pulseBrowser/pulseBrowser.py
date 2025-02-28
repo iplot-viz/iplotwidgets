@@ -7,6 +7,9 @@ from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox
 from PySide6.QtCore import Qt, Signal
 
 from iplotDataAccess.dataSource import DataSource
+from iplotDataAccess.dataSourceConfig import DS_IMASPY_TYPE
+from iplotDataAccess.dataAccess import DataSource
+from iplotDataAccess.dataSourceConfig import DS_CODAC_TYPE, DS_IMAS_TYPE, DS_IMASPY_TYPE
 from iplotWidgets.pulseBrowser.PulseTable import PulseTable
 from iplotLogging import setupLogger as setupLog
 from iplotDataAccess.appDataAccess import AppDataAccess
@@ -261,6 +264,7 @@ class PulseBrowser(QWidget):
             self.add_pulse()
 
     def info_pulse(self, index):
-        if self.get_current_source().source_type == 'DS_IMAS_TYPE':
+        if self.get_current_source().source_type in ['DS_IMAS_TYPE',DS_IMASPY_TYPE]:
             row = index.row()
+            print("Getting pulse info")
             self.table.get_pulse_info(row)
