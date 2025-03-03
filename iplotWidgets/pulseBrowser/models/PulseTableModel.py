@@ -7,7 +7,6 @@ from PySide6.QtCore import Qt
 from pandas.core.interchange.dataframe_protocol import DataFrame
 
 from iplotDataAccess.dataSource import DataSource
-from iplotDataAccess.dataSourceConfig import DS_IMASPY_TYPE
 
 
 class PulseTableModel(QAbstractTableModel):
@@ -18,15 +17,6 @@ class PulseTableModel(QAbstractTableModel):
         self.data_source = data_source
         self.dataframe: pd.DataFrame = pd.DataFrame()
 
-        if self.data_source.dtype == DS_IMAS_TYPE:
-            self.dataframe: pd.DataFrame = pd.DataFrame(columns=["Pulse", "Run"])
-        elif self.data_source.dtype == DS_IMASPY_TYPE:
-            self.dataframe: pd.DataFrame = pd.DataFrame(columns=["Pulse", "Run", "workflow", "ip","b0", "fuelling", "confinement","ref_name", "date"])
-        elif self.data_source.dtype == DS_CODAC_TYPE:
-            self.dataframe: pd.DataFrame = pd.DataFrame(
-                columns=['Pulse', 'Description', 'Status', 'Time From', 'Time To', 'Duration'])
-        else:
-            self.dataframe: pd.DataFrame = pd.DataFrame()
         self._current_page: int = 0
         self._page_size: int = 20
 
@@ -73,7 +63,7 @@ class PulseTableModel(QAbstractTableModel):
 
     def get_pulse(self, row: int):
         current_row = row + self._current_page * self._page_size
-        if self.data_source.source_type == "DS_IMAS_TYPE" or self.data_source.dtype == DS_IMASPY_TYPE:
+        if self.data_source.source_type == "DS_IMAS_TYPE" or self.data_source.source_type == 'DS_IMASPY_TYPE':
             run = int(self.dataframe.iloc[current_row, 1])
             return self.dataframe.iloc[current_row, 0] + '/' + str(run)
         else:
