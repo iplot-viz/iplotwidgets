@@ -21,7 +21,8 @@ class PulseTableModel(QAbstractTableModel):
         if self.data_source.dtype == DS_IMAS_TYPE:
             self.dataframe: pd.DataFrame = pd.DataFrame(columns=["Pulse", "Run"])
         elif self.data_source.dtype == DS_IMASPY_TYPE:
-            self.dataframe: pd.DataFrame = pd.DataFrame(columns=["Pulse", "Run", "workflow", "ip","b0", "fuelling", "confinement","ref_name", "date"])
+            self.dataframe: pd.DataFrame = pd.DataFrame(
+                columns=["Pulse", "Run", "workflow", "ip", "b0", "fuelling", "confinement", "ref_name", "date"])
         elif self.data_source.dtype == DS_CODAC_TYPE:
             self.dataframe: pd.DataFrame = pd.DataFrame(
                 columns=['Pulse', 'Description', 'Status', 'Time From', 'Time To', 'Duration'])
@@ -68,7 +69,8 @@ class PulseTableModel(QAbstractTableModel):
 
     def add_row(self, new_values: List) -> None:
         new_dataframe = pd.DataFrame([new_values], columns=self.dataframe.columns)
-        self.dataframe = pd.concat([self.dataframe, new_dataframe]).reset_index(drop=True)
+        if not new_dataframe.empty and not new_dataframe.isna().all().all():
+            self.dataframe = pd.concat([self.dataframe, new_dataframe]).reset_index(drop=True)
         self.layoutChanged.emit()
 
     def get_pulse(self, row: int):
@@ -126,7 +128,9 @@ class PulseTableModel(QAbstractTableModel):
             # Clear previous dataframe if existed
             self.dataframe.drop(self.dataframe.index, inplace=True)
             for key, value in document.items():
-                self.add_row([value['pulse'], value['run'], value['workflow'], value['ip'], value['b0'],value['fuelling'],value['confinement'], value['ref_name'], value['date']])
+                self.add_row(
+                    [value['pulse'], value['run'], value['workflow'], value['ip'], value['b0'], value['fuelling'],
+                     value['confinement'], value['ref_name'], value['date']])
 
         elif self.data_source.dtype == DS_CODAC_TYPE:
             # Clear previous dataframe if existed
