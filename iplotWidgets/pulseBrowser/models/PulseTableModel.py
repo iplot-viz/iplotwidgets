@@ -1,5 +1,5 @@
 import math
-from typing import *
+from typing import Any, Union, List
 
 import pandas as pd
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelIndex, Signal
