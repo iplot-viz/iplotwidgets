@@ -46,6 +46,7 @@ class PulseBrowser(QWidget):
             self.setWindowTitle("Pulse search")
             self.flag = ""
             self.table = PulseTable()
+            self.table.setSortingEnabled(True)
             self.table.doubleClicked.connect(self.info_pulse)
             self.searchbar = QLineEdit()
             self.searchbar.textChanged.connect(self.update_display)

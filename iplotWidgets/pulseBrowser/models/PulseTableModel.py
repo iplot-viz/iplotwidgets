@@ -99,6 +99,10 @@ class PulseTableModel(QAbstractTableModel):
     def load_document(self, new_df: DataFrame) -> None:
         """Load model from a dictionary
         """
+        # enforce preferred column order on every load
+        preferred_order = ['Pulse', 'Time From', 'Time To', 'Duration', 'Status', 'Description']
+        new_df = new_df[preferred_order].copy()
+
         self.beginResetModel()
 
         # Clear previous dataframe if existed
@@ -134,3 +138,37 @@ class PulseTableModel(QAbstractTableModel):
             return f"{time_str}"
         else:
             return f"{days} days {time_str}"
+
+    def sort(self, column: int, order: Qt.SortOrder = Qt.SortOrder.AscendingOrder) -> None:
+        """
+        Sort the model by the given column index and order.
+        Empty or missing values are always pushed to the bottom.
+        """
+        # Determine the column name from the DataFrame
+        col_name = self.dataframe.columns[column]
+
+        # Translate Qt sort order to boolean
+        ascending = (order == Qt.SortOrder.AscendingOrder)
+
+        # Notify views that layout is about to change
+        self.layoutAboutToBeChanged.emit()
+
+        # Add temporary flag: 0 for non-empty, 1 for empty or NaN
+        self.dataframe['_empty_flag'] = (
+                self.dataframe[col_name].isna() |
+                (self.dataframe[col_name].astype(str) == '')
+        ).astype(int)
+
+        # Sort first by the flag (empties last), then by the real column
+        self.dataframe.sort_values(
+            by=['_empty_flag', col_name],
+            ascending=[True, ascending],
+            inplace=True,
+            ignore_index=True
+        )
+
+        # Drop the temporary flag column
+        self.dataframe.drop(columns=['_empty_flag'], inplace=True)
+
+        # Notify views that layout has changed
+        self.layoutChanged.emit()
