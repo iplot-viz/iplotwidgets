@@ -127,6 +127,7 @@ class PulseBrowser(QWidget):
         new_source = self.get_current_source()
         # self.table.reset_page()
         self.table.load_model(new_source)
+        self.update_page_size()
         self.update_page_label()
 
     def update_display(self):
