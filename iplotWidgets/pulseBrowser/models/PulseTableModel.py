@@ -99,9 +99,34 @@ class PulseTableModel(QAbstractTableModel):
     def load_document(self, new_df: DataFrame) -> None:
         """Load model from a dictionary
         """
-        # enforce preferred column order on every load
-        preferred_order = ['Pulse', 'Time From', 'Time To', 'Duration', 'Status', 'Description']
-        new_df = new_df[preferred_order].copy()
+        # Define preferred keywords for main columns (lowercase for generic matching)
+        preferred_keywords = [
+            'pulse',
+            'time from',
+            'time to',
+            'duration',
+            'status',
+            'description'
+        ]
+        cols = list(new_df.columns)
+
+        # Find and order columns that match preferred keywords, preserving their first occurrence
+        ordered_cols = []
+        used = set()
+        for key in preferred_keywords:
+            for c in cols:
+                if key in c.lower() and c not in used:
+                    ordered_cols.append(c)
+                    used.add(c)
+                    break
+
+        # Append any remaining columns in their original order
+        for c in cols:
+            if c not in used:
+                ordered_cols.append(c)
+
+        # Reorder the DataFrame
+        new_df = new_df[ordered_cols].copy()
 
         self.beginResetModel()
 
