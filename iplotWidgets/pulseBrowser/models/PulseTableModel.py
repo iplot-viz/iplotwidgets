@@ -99,7 +99,6 @@ class PulseTableModel(QAbstractTableModel):
     def load_document(self, new_df: DataFrame) -> None:
         """Load model from a dictionary
         """
-
         self.beginResetModel()
 
         # Clear previous dataframe if existed
