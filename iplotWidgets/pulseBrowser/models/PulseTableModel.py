@@ -139,6 +139,7 @@ class PulseTableModel(QAbstractTableModel):
         """
         Sort the model by the given column index and order.
         Empty or missing values are always pushed to the bottom.
+        Numeric strings are sorted by numeric value, other strings by lexicographical order.
         """
         # Determine the column name from the DataFrame
         col_name = self.dataframe.columns[column]
@@ -149,22 +150,33 @@ class PulseTableModel(QAbstractTableModel):
         # Notify views that layout is about to change
         self.layoutAboutToBeChanged.emit()
 
-        # Add temporary flag: 0 for non-empty, 1 for empty or NaN
+        # Clean and flag empties: 0 for non-empty, 1 for empty or NaN
+        self.dataframe[col_name] = (
+            self.dataframe[col_name].astype(str).str.replace('"', '', regex=False).str.strip()
+        )
         self.dataframe['_empty_flag'] = (
                 self.dataframe[col_name].isna() |
-                (self.dataframe[col_name].astype(str) == '')
+                (self.dataframe[col_name] == '')
         ).astype(int)
 
-        # Sort first by the flag (empties last), then by the real column
+        # Attempt numeric conversion: if any value converts, use numeric sort key
+        numeric_key = pd.to_numeric(self.dataframe[col_name], errors='coerce')
+        if not numeric_key.isna().all():
+            self.dataframe['_sort_key'] = numeric_key
+        else:
+            # Fallback: sort by the raw string
+            self.dataframe['_sort_key'] = self.dataframe[col_name]
+
+        # Perform the sort: empties first, then by our key
         self.dataframe.sort_values(
-            by=['_empty_flag', col_name],
+            by=['_empty_flag', '_sort_key'],
             ascending=[True, ascending],
             inplace=True,
             ignore_index=True
         )
 
-        # Drop the temporary flag column
-        self.dataframe.drop(columns=['_empty_flag'], inplace=True)
+        # Clean up temporary columns
+        self.dataframe.drop(columns=['_empty_flag', '_sort_key'], inplace=True)
 
         # Notify views that layout has changed
         self.layoutChanged.emit()
