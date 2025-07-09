@@ -127,6 +127,7 @@ class PulseBrowser(QWidget):
         new_source = self.get_current_source()
         # self.table.reset_page()
         self.table.load_model(new_source)
+        self.table.adjust_columns(new_source)
         self.update_page_size()
         self.update_page_label()
 
@@ -149,11 +150,13 @@ class PulseBrowser(QWidget):
         model = self.table.get_current_model()
         model.previous_page()
         self.update_page_label()
+        self.table.resizeColumnsToContents()
 
     def next_pulses(self):
         model = self.table.get_current_model()
         model.next_page()
         self.update_page_label()
+        self.table.resizeColumnsToContents()
 
     def update_page_size(self):
         self.table.get_current_model().page_size = self.get_page_size()
