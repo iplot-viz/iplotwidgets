@@ -60,7 +60,7 @@ class VariableModel(QAbstractItemModel):
         self.endResetModel()
 
     def expand(self, item):
-        if self.data_source.source_type not in (DS_CODAC_TYPE, DS_CSV_TYPE):
+        if self.data_source.source_type != DS_CODAC_TYPE:
             return
         if item.consulted:
             return
