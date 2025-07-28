@@ -10,7 +10,7 @@ from iplotDataAccess.dataAccess import DataSource
 from iplotWidgets.pulseBrowser.PulseTable import PulseTable
 from iplotLogging import setupLogger as setupLog
 from iplotDataAccess.appDataAccess import AppDataAccess
-from iplotDataAccess.dataSource import DS_IMAS_TYPE, DS_IMASPY_TYPE
+from iplotDataAccess.dataSource import DS_IMASPY_TYPE
 
 logger = setupLog.get_logger(__name__)
 
@@ -267,7 +267,7 @@ class PulseBrowser(QWidget):
             self.add_pulse()
 
     def info_pulse(self, index):
-        if self.get_current_source().source_type in [DS_IMAS_TYPE, DS_IMASPY_TYPE]:
+        if self.get_current_source().source_type == DS_IMASPY_TYPE:
             row = index.row()
             print("Getting pulse info")
             self.table.get_pulse_info(row)

@@ -6,7 +6,7 @@ from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelInd
 from PySide6.QtCore import Qt
 from pandas.core.interchange.dataframe_protocol import DataFrame
 
-from iplotDataAccess.dataSource import DataSource, DS_IMASPY_TYPE, DS_IMAS_TYPE
+from iplotDataAccess.dataSource import DataSource, DS_IMASPY_TYPE
 
 
 class PulseTableModel(QAbstractTableModel):
@@ -64,7 +64,7 @@ class PulseTableModel(QAbstractTableModel):
 
     def get_pulse(self, row: int):
         current_row = row + self._current_page * self._page_size
-        if self.data_source.source_type == DS_IMAS_TYPE or self.data_source.source_type == DS_IMASPY_TYPE:
+        if self.data_source.source_type == DS_IMASPY_TYPE:
             run = int(self.dataframe.iloc[current_row, 1])
             return self.dataframe.iloc[current_row, 0] + '/' + str(run)
         else:
