@@ -1,16 +1,22 @@
 import math
+import os
+import pickle
+from datetime import datetime, timedelta
 from typing import Any, Union, List
 
 import pandas as pd
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelIndex, Signal
 from PySide6.QtCore import Qt
 from pandas.core.interchange.dataframe_protocol import DataFrame
-
+from iplotLogging import setupLogger as setupLog
 from iplotDataAccess.dataSource import DataSource, DS_IMASPY_TYPE
 
+logger = setupLog.get_logger(__name__)
 
 class PulseTableModel(QAbstractTableModel):
     layoutChanged = Signal()
+    CACHE_FILE = "/tmp/pulses_df.pkl"
+    CACHE_TTL = timedelta(days=3) 
 
     def __init__(self, data_source: DataSource):
         super(PulseTableModel, self).__init__()
@@ -19,6 +25,8 @@ class PulseTableModel(QAbstractTableModel):
 
         self._current_page: int = 0
         self._page_size: int = 20
+        self._loaded = False
+        self._document: pd.DataFrame = pd.DataFrame()
 
     @property
     def page_size(self) -> int:
@@ -90,11 +98,44 @@ class PulseTableModel(QAbstractTableModel):
         else:
             return 0
 
-    def load(self) -> None:
-        """ Load model from zero """
-        document = self.data_source.get_pulses_df()
+    @property
+    def document(self) -> pd.DataFrame:
+        """Access the underlying DataFrame, triggering load() if needed."""
+        if not self._loaded:
+            self.load()
+        return self._document
 
-        self.load_document(document)
+    def _cache_is_valid(self) -> bool:
+        """True if cache exists and is newer than TTL."""
+        if not os.path.exists(self.CACHE_FILE):
+            return False
+        mtime = datetime.fromtimestamp(os.path.getmtime(self.CACHE_FILE))
+        return (datetime.now() - mtime) < self.CACHE_TTL
+    
+    def load(self) -> None:
+        """
+        Load (or reload) the pulses DataFrame, using disk-cache with TTL.
+        Subsequent calls before TTL expires are<<1 s; after TTL, will re-fetch.
+        """
+        if self._loaded:
+            return
+
+        if self._cache_is_valid():
+            # fast load from disk
+            with open(self.CACHE_FILE, "rb") as f:
+                df = pickle.load(f)
+            logger.debug(f"[PulseTableModel] Loaded from cache (age {(datetime.now() - datetime.fromtimestamp(os.path.getmtime(self.CACHE_FILE))).days} days)")
+        else:
+            logger.debug("[PulseTableModel] Cache miss or expired; fetching from data source…")
+            df = self.data_source.get_pulses_df()    # ~20 s
+            with open(self.CACHE_FILE, "wb") as f:
+                pickle.dump(df, f)
+            logger.debug("[PulseTableModel] Data fetched and cached to disk.")
+
+        # finally, update the model
+        self._document = df
+        self.load_document(df)
+        self._loaded = True
 
     def load_document(self, new_df: DataFrame) -> None:
         """Load model from a dictionary
