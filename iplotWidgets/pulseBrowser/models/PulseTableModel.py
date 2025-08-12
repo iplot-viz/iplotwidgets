@@ -1,5 +1,6 @@
 import math
 import os
+from pathlib import Path
 import pickle
 from datetime import datetime, timedelta
 from typing import Any, Union, List
@@ -15,11 +16,14 @@ logger = setupLog.get_logger(__name__)
 
 class PulseTableModel(QAbstractTableModel):
     layoutChanged = Signal()
-    CACHE_FILE = "/tmp/pulses_df.pkl"
+    
     CACHE_TTL = timedelta(days=3) 
 
     def __init__(self, data_source: DataSource):
         super(PulseTableModel, self).__init__()
+        cache_dir = os.environ.get('IPLOT_DUMP_PATH', f"{Path.home()}/.local/1Dtool/cache")
+        os.makedirs(cache_dir, exist_ok=True)
+        self.CACHE_FILE = os.path.join(cache_dir, "pulses_df.pkl")
         self.data_source = data_source
         self.dataframe: pd.DataFrame = pd.DataFrame()
 
@@ -124,13 +128,10 @@ class PulseTableModel(QAbstractTableModel):
             # fast load from disk
             with open(self.CACHE_FILE, "rb") as f:
                 df = pickle.load(f)
-            logger.debug(f"[PulseTableModel] Loaded from cache (age {(datetime.now() - datetime.fromtimestamp(os.path.getmtime(self.CACHE_FILE))).days} days)")
         else:
-            logger.debug("[PulseTableModel] Cache miss or expired; fetching from data source…")
             df = self.data_source.get_pulses_df()    # ~20 s
             with open(self.CACHE_FILE, "wb") as f:
                 pickle.dump(df, f)
-            logger.debug("[PulseTableModel] Data fetched and cached to disk.")
 
         # finally, update the model
         self._document = df
