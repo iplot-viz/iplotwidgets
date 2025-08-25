@@ -21,16 +21,18 @@ class PulseTableModel(QAbstractTableModel):
 
     def __init__(self, data_source: DataSource):
         super(PulseTableModel, self).__init__()
-        cache_dir = os.environ.get('IPLOT_DUMP_PATH', f"{Path.home()}/.local/1Dtool/cache")
-        os.makedirs(cache_dir, exist_ok=True)
-        self.CACHE_FILE = os.path.join(cache_dir, "pulses_df.pkl")
         self.data_source = data_source
+        if self.data_source.source_type == DS_IMASPY_TYPE:
+            cache_dir = os.environ.get('IPLOT_DUMP_PATH', f"{Path.home()}/.local/1Dtool/cache")
+            os.makedirs(cache_dir, exist_ok=True)
+            self.CACHE_FILE = os.path.join(cache_dir, "pulses_df.pkl")
+            self._loaded = False
+            self._document: pd.DataFrame = pd.DataFrame()
+        
         self.dataframe: pd.DataFrame = pd.DataFrame()
 
         self._current_page: int = 0
         self._page_size: int = 20
-        self._loaded = False
-        self._document: pd.DataFrame = pd.DataFrame()
 
     @property
     def page_size(self) -> int:
@@ -121,22 +123,27 @@ class PulseTableModel(QAbstractTableModel):
         Load (or reload) the pulses DataFrame, using disk-cache with TTL.
         Subsequent calls before TTL expires are<<1 s; after TTL, will re-fetch.
         """
-        if self._loaded:
-            return
+        if self.data_source.source_type == DS_IMASPY_TYPE:
+            if self._loaded:
+                return
 
-        if self._cache_is_valid():
-            # fast load from disk
-            with open(self.CACHE_FILE, "rb") as f:
-                df = pickle.load(f)
+            if self._cache_is_valid():
+                # fast load from disk
+                with open(self.CACHE_FILE, "rb") as f:
+                    df = pickle.load(f)
+            else:
+                df = self.data_source.get_pulses_df()    # ~20 s
+                with open(self.CACHE_FILE, "wb") as f:
+                    pickle.dump(df, f)
+
+            # finally, update the model
+            self._document = df
+            self.load_document(df)
+            self._loaded = True
         else:
-            df = self.data_source.get_pulses_df()    # ~20 s
-            with open(self.CACHE_FILE, "wb") as f:
-                pickle.dump(df, f)
+            document = self.data_source.get_pulses_df()
 
-        # finally, update the model
-        self._document = df
-        self.load_document(df)
-        self._loaded = True
+            self.load_document(document)
 
     def load_document(self, new_df: DataFrame) -> None:
         """Load model from a dictionary
