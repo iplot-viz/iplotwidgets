@@ -269,5 +269,5 @@ class PulseBrowser(QWidget):
     def info_pulse(self, index):
         if self.get_current_source().source_type == DS_IMASPY_TYPE:
             row = index.row()
-            print("Getting pulse info")
+            logger.info("Getting pulse info")
             self.table.get_pulse_info(row)
