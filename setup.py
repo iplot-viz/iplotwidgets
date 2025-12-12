@@ -20,7 +20,7 @@ setuptools.setup(
     author_email="lana.abadie@iter.org",
     description="IDV widget components library",
     long_description=long_description,
-    url="https://git.iter.org/projects/VIS/repos/iplotwidgets/browse",
+    url="https://github.com/iplot-viz/iplotwidgets.git",
     project_urls={
         "Bug Tracker": "https://jira.iter.org/issues/?jql=project+%3D+IDV+AND+component+%3D+iplotwidgets",
     },
