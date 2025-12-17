@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=42.0", "wheel", "versioneer[toml]"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "iplotWidgets"
+description = "Library of GUI widgets for data visualization"
+authors = [
+    { name = "Lana Abadie", email = "lana.abadie@iter.org" },
+]
+maintainers = [
+    { name = "Jhon Steeven Cabanilla Alvarado", email = "jscabanilla@minsait.com" },
+    { name = "Pablo Martin Villares", email = "pmartin@minsait.com" },
+    { name = "Mario Gómez Ballesteros", email = "mgomezb@minsait.com" },
+]
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">= 3.11"
+license = { text = "MIT" }
+keywords = ["Widgets", "GUI", "Search", "Variable", "Pulse", "IMAS", "CODAC"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "iplotLogging",
+    "iplotDataAccess"
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+test = ["pytest >= 6.0"]
+
+[project.urls]
+Homepage = "https://github.com/iplot-viz/iplotwidgets"
+Repository = "https://github.com/iplot-viz/iplotwidgets.git"
+Issues = "https://github.com/iplot-viz/iplotwidgets/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["iplotWidgets*"]
+
+[tool.pytest.ini_options]
+addopts = "-rA -s -v"
+testpaths = "tests"
+
+[tool.versioneer]
+VCS = "git"
+style = "pep440"
+versionfile_source = "iplotWidgets/_version.py"
+versionfile_build = "iplotWidgets/_version.py"
+tag_prefix = ""
+parentdir_prefix = ""
+
+
