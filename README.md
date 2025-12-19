@@ -5,7 +5,7 @@ to develop data visualization applications.
 ## Requirements
 
 1. Python <= 3.11
-2. Dependencies: Managed via [pyproject.toml](https://github.com/iplot-viz/iplotwidgets/blob/IDV-732-add-pyqtgraph-as-backend-to-iplotlib/pyproject.toml)
+2. Dependencies: Managed via [pyproject.toml](https://github.com/iplot-viz/iplotwidgets/blob/develop/pyproject.toml)
 
 ## Installation
 
@@ -15,7 +15,7 @@ Install the package from PyPi:
   pip install iplotWidgets
   ```
 
-### Contributing
+## Contributing
 
 1. Fork it!
 2. Create your feature branch: ```git checkout -b my-new-feature ```
