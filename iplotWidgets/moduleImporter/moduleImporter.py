@@ -79,6 +79,12 @@ class ModuleImporter(QWidget):
 
     def check_module(self):
         text = self.searchbar.text()
+        module_name = self.parser.pattern.match(text).groupdict()['module']
+        if module_name in self.parser.get_modules_names():
+            msg = f"Module '{module_name}' already imported"
+            logger.warning(msg)
+            show_msg_info(msg)
+            return
 
         try:
             self.parser.load_modules(text)
@@ -115,5 +121,13 @@ def show_msg(message):
     box = QMessageBox()
     box.setIcon(QMessageBox.Icon.Critical)
     box.setWindowTitle("Error")
+    box.setText(message)
+    box.exec_()
+
+
+def show_msg_info(message):
+    box = QMessageBox()
+    box.setIcon(QMessageBox.Icon.Information)
+    box.setWindowTitle("Warning")
     box.setText(message)
     box.exec_()
