@@ -45,6 +45,8 @@ class PulseBrowser(QWidget):
             )
             self.setWindowTitle("Pulse search")
             self.flag = ""
+            self._single_selection_mode = False
+            self._require_timestamps = False
             self.table = PulseTable()
             self.table.setSortingEnabled(True)
             self.table.doubleClicked.connect(self.info_pulse)
@@ -177,7 +179,7 @@ class PulseBrowser(QWidget):
         # Check implemented to insert the pulses in the correct place
         if self.flag == "table":
             self.cmd_finish.emit(pulses)
-        elif self.flag == "button":
+        elif self.flag in ("button", "time_range", "pulse_id"):
             self.srch_finish.emit(pulses)
         self.table.clearSelection()
 
@@ -271,3 +273,33 @@ class PulseBrowser(QWidget):
             row = index.row()
             logger.info("Getting pulse info")
             self.table.get_pulse_info(row)
+
+    def set_selection_mode(self, single: bool, require_timestamps: bool = False):
+        """Configure selection mode and timestamp requirement.
+
+        Args:
+            single: If True, only single row selection is allowed
+            require_timestamps: If True, filter out pulses without timestamps (for IMAS)
+        """
+        from PySide6.QtWidgets import QAbstractItemView
+        self._single_selection_mode = single
+        self._require_timestamps = require_timestamps
+        if single:
+            self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        else:
+            self.table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+
+        # Hide/show IMAS data sources based on timestamp requirement
+        for i in range(self.sources_combo.count()):
+            ds = self.sources_combo.itemData(i)
+            if ds and ds.source_type == DS_IMASPY_TYPE:
+                # Disable IMAS sources when timestamps are required
+                model = self.sources_combo.model()
+                item = model.item(i)
+                if item:
+                    from PySide6.QtCore import Qt
+                    if require_timestamps:
+                        item.setEnabled(False)
+                    else:
+                        item.setEnabled(True)
+
