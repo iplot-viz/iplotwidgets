@@ -173,8 +173,8 @@ class PulseBrowser(QWidget):
         rows = list({ix.row() for ix in indexes})
 
         for row in rows:
-            value = self.table.models[self.table.current_model_name].get_pulse(row)
-            pulses.append(value)
+            uri = self.table.get_imas_uri(row)
+            pulses.append(uri)
 
         # Check implemented to insert the pulses in the correct place
         if self.flag == "table":

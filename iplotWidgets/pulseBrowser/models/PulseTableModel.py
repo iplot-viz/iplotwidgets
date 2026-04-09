@@ -16,8 +16,11 @@ logger = setupLog.get_logger(__name__)
 
 class PulseTableModel(QAbstractTableModel):
     layoutChanged = Signal()
-    
+
     CACHE_TTL = timedelta(days=3) 
+
+    REQUIRED_COLUMNS = {"uuid", "alias", "imas_uri"}
+    HIDDEN_COLUMNS = {"uuid", "imas_uri", "dashboard_link"}
 
     def __init__(self, data_source: DataSource):
         super(PulseTableModel, self).__init__()
@@ -50,7 +53,9 @@ class PulseTableModel(QAbstractTableModel):
         if not index.isValid() or role != Qt.ItemDataRole.DisplayRole:
             return None
         row = index.row() + self._current_page * self._page_size
-        col = index.column()
+        col = self._get_visible_col_index(index.column())
+        if col < 0:
+            return None
         value = self.dataframe.iloc[row, col]
         if isinstance(value, pd.Timestamp):
             return value.strftime('%Y-%m-%d %H:%M:%S')
@@ -63,12 +68,14 @@ class PulseTableModel(QAbstractTableModel):
         return min(self._page_size, len(self.dataframe) - self._current_page * self._page_size)
 
     def columnCount(self, parent: Union[QModelIndex, QPersistentModelIndex] = ...) -> int:
-        return self.dataframe.shape[1]
+        return sum(1 for col in self.dataframe.columns if col not in self.HIDDEN_COLUMNS)
 
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = ...) -> Any:
         if role == Qt.ItemDataRole.DisplayRole:
             if orientation == Qt.Orientation.Horizontal:
-                return str(self.dataframe.columns[section])
+                col_idx = self._get_visible_col_index(section)
+                if col_idx >= 0:
+                    return str(self.dataframe.columns[col_idx])
 
     def add_row(self, new_values: List) -> None:
         new_dataframe = pd.DataFrame([new_values], columns=self.dataframe.columns)
@@ -78,11 +85,23 @@ class PulseTableModel(QAbstractTableModel):
 
     def get_pulse(self, row: int):
         current_row = row + self._current_page * self._page_size
-        if self.data_source.source_type == DS_IMASPY_TYPE:
-            run = int(self.dataframe.iloc[current_row, 1])
-            return self.dataframe.iloc[current_row, 0] + '/' + str(run)
-        else:
-            return self.dataframe.iloc[current_row, 0]
+        if "alias" in self.dataframe.columns:
+            return self.dataframe.at[self.dataframe.index[current_row], "alias"]
+        return self.dataframe.iloc[current_row, self._col_offset]
+
+    def get_imas_uri(self, row: int) -> str:
+        current_row = row + self._current_page * self._page_size
+        if "imas_uri" in self.dataframe.columns:
+            val = self.dataframe.at[self.dataframe.index[current_row], "imas_uri"]
+            return str(val) if val and str(val) not in ("", "nan") else ""
+        return ""
+
+    def get_dashboard_link(self, row: int) -> str:
+        current_row = row + self._current_page * self._page_size
+        if "dashboard_link" in self.dataframe.columns:
+            val = self.dataframe.at[self.dataframe.index[current_row], "dashboard_link"]
+            return str(val) if val and str(val) not in ("", "nan") else ""
+        return ""
 
     def next_page(self) -> None:
         if self._current_page < self.get_total_pages():
@@ -103,6 +122,16 @@ class PulseTableModel(QAbstractTableModel):
             return self._current_page + 1
         else:
             return 0
+
+    def _get_visible_col_index(self, display_col: int) -> int:
+        """Map display column index to actual DataFrame column index, skipping hidden columns."""
+        visible_count = 0
+        for df_col_idx, col_name in enumerate(self.dataframe.columns):
+            if col_name not in self.HIDDEN_COLUMNS:
+                if visible_count == display_col:
+                    return df_col_idx
+                visible_count += 1
+        return -1
 
     @property
     def document(self) -> pd.DataFrame:
@@ -133,8 +162,9 @@ class PulseTableModel(QAbstractTableModel):
                     df = pickle.load(f)
             else:
                 df = self.data_source.get_pulses_df()    # ~20 s
-                with open(self.CACHE_FILE, "wb") as f:
-                    pickle.dump(df, f)
+                if not df.empty:
+                    with open(self.CACHE_FILE, "wb") as f:
+                        pickle.dump(df, f)
 
             # finally, update the model
             self._document = df
@@ -156,11 +186,13 @@ class PulseTableModel(QAbstractTableModel):
         self.endResetModel()
 
     def get_pulse_info(self, row):
-        pulse = int(self.dataframe.iloc[row, 0])
-        run = int(self.dataframe.iloc[row, 1])
-        info = self.data_source.get_pulse_info(pulse=pulse, run=run)
+        current_row = row + self._current_page * self._page_size
+        uuid_val = None
+        if "uuid" in self.dataframe.columns:
+            uuid_val = str(self.dataframe.at[self.dataframe.index[current_row], "uuid"])
+        info = self.data_source.get_pulse_info(uuid=uuid_val)
         print("====================================================")
-        print(f"pulse = {pulse} run={run}")
+        print(f"uuid = {uuid_val}")
         print("====================================================")
         print(info)
         print("====================================================")
@@ -189,7 +221,10 @@ class PulseTableModel(QAbstractTableModel):
         Sort the model by the given column index and order.
         Numeric strings sorted numerically, others lexicographically.
         """
-        col_name = self.dataframe.columns[column]
+        col_idx = self._get_visible_col_index(column)
+        if col_idx < 0:
+            return
+        col_name = self.dataframe.columns[col_idx]
         ascending = (order == Qt.SortOrder.AscendingOrder)
 
         self.layoutAboutToBeChanged.emit()
