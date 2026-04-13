@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox
     QProgressBar, QSplitter
 from PySide6.QtCore import Qt, Signal
 
-from iplotDataAccess.dataSource import DataSource
+from iplotDataAccess.dataSource import DataSource, DS_CODAC_TYPE
 from iplotWidgets.variableBrowser.variableTree import VariableTree
 from iplotWidgets.variableBrowser.variableTable import VariableTable
 from iplotLogging import setupLogger as setupLog
@@ -140,19 +140,25 @@ class VariableBrowser(QWidget):
         self.tree.set_model('SEARCH')
 
         type_search = self.type_search.currentText()
+        data_source = self.get_current_source()
+
+        # Parse "variable/field" syntax (CODAC_UDA only)
+        field = None
+        search_text = text
+        if data_source.source_type == DS_CODAC_TYPE and '/' in text:
+            search_text, field = text.split('/', 1)
 
         if type_search == 'startsWith':
-            pattern = f'{text}.*'
+            pattern = f'{search_text}.*'
         elif type_search == 'contains':
-            pattern = f'.*{text}.*'
+            pattern = f'.*{search_text}.*'
         elif type_search == 'endsWith':
-            pattern = f'.*{text}'
+            pattern = f'.*{search_text}'
         else:
             pattern = ''
-        data_source = self.get_current_source()
         self.tree.models['SEARCH'].data_source = data_source
         try:
-            found = data_source.get_var_dict(pattern=pattern)
+            found = data_source.get_var_dict(pattern=pattern, field=field)
 
             if found:
                 self.progress_bar.setFormat("Loading variables into the model")
