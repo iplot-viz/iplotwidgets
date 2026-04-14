@@ -158,7 +158,10 @@ class VariableBrowser(QWidget):
             pattern = ''
         self.tree.models['SEARCH'].data_source = data_source
         try:
-            found = data_source.get_var_dict(pattern=pattern, field=field)
+            if field:
+                found = data_source.get_var_dict(pattern=pattern, field=field)
+            else:
+                found = data_source.get_var_dict(pattern=pattern)
 
             if found:
                 self.progress_bar.setFormat("Loading variables into the model")
