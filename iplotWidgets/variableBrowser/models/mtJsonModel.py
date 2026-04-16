@@ -15,6 +15,7 @@ class VariableModel(QAbstractItemModel):
         self.root_item = VarItem()
         self.data_source = data_source
         self.search: bool = search
+        self.field_filter: str = None
         self.clear()
 
     def supportedDropActions(self):
@@ -49,8 +50,11 @@ class VariableModel(QAbstractItemModel):
         """Load model from a dictionary.
 
         If `field_filter` is provided (CODAC field-based search), only fields whose key
-        contains the filter string are added to the tree for each variable.
+        contains the filter string are added to the tree for each variable. The filter
+        is persisted so subsequent `expand()` calls (triggered by the user unfolding a
+        variable in the tree) also apply it.
         """
+        self.field_filter = field_filter
 
         self.beginResetModel()
 
@@ -74,7 +78,7 @@ class VariableModel(QAbstractItemModel):
             if data:
                 item.load(data, item, consulted=True)
 
-        item.check_folder(self.data_source)
+        item.check_folder(self.data_source, field_filter=self.field_filter)
 
     def data(self, index: Union[QModelIndex, QPersistentModelIndex], role: int = ...) -> Any:
         """Override from QAbstractItemModel
