@@ -1,3 +1,4 @@
+import re
 import time
 
 import pandas as pd
@@ -147,6 +148,12 @@ class VariableBrowser(QWidget):
         search_text = text
         if data_source.source_type == DS_CODAC_TYPE and '/' in text:
             search_text, field = text.split('/', 1)
+
+        # Treat user input as a glob (escape regex metacharacters and translate
+        # the glob wildcards * and ? to their regex equivalents). Without this,
+        # a user typing "EC*" would build ".*EC*.*" and match any string
+        # containing "E" (since C* means zero-or-more C in regex).
+        search_text = re.escape(search_text).replace(r'\*', '.*').replace(r'\?', '.')
 
         if type_search == 'startsWith':
             pattern = f'{search_text}.*'

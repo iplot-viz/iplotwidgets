@@ -378,29 +378,41 @@ class UdaVarItem(VarItem):
 
     def check_folder(self, data_source, field_filter: str = None):
         self.consulted = True
+        # When a field filter is active, variables whose field structure does not
+        # contain it (no data, single-value leaves, or nested with no matching key)
+        # are pruned from the tree so they do not appear as empty/dead folders.
+        to_remove = []
         for child in self.children:
             if child.has_child() or child.consulted:
                 continue
             data = data_source.get_var_fields(variable=child.key)
 
             if not data:
+                if field_filter:
+                    to_remove.append(child)
                 continue
 
             if set(data.keys()) == {'status_id', 'val', 'secs', 'severity_id', 'nanosecs'}:
+                if field_filter:
+                    to_remove.append(child)
+                    continue
                 child.data_type = data['val']['type']
                 child.unit = data['val']['units']
                 child.description = data['val']['description']
                 child.dimension = data['val']['dimensionality']
             elif list(data.keys()) == ['value']:
+                if field_filter:
+                    to_remove.append(child)
+                    continue
                 child.data_type = data['value']['type']
                 child.unit = data['value']['units']
                 child.description = data['value']['description']
                 child.dimension = data['value']['dimensionality']
             else:
-                # When a field filter is active, only keep fields whose key contains it.
                 if field_filter:
                     data = {k: v for k, v in data.items() if field_filter in k}
                     if not data:
+                        to_remove.append(child)
                         continue
                 child.data_type = 'nested_variable'
                 UdaVarItem.load_nested_child(self.group_common_parts(data), child, consulted=True)
@@ -414,6 +426,9 @@ class UdaVarItem(VarItem):
                                                   dimension=val['dimensionality'],
                                                   data_type=val['type']
                                                   ))
+
+        if field_filter and to_remove:
+            self.children = [c for c in self.children if c not in to_remove]
 
 
 class ImasVarItem(VarItem):
