@@ -166,7 +166,7 @@ class VariableBrowser(QWidget):
             if found:
                 self.progress_bar.setFormat("Loading variables into the model")
                 self.progress_bar.setValue(80)
-                self.tree.models['SEARCH'].load_document(found)
+                self.tree.models['SEARCH'].load_document(found, field_filter=field)
                 time.sleep(0.4)
             else:
                 self.progress_bar.setStyleSheet("QProgressBar::chunk {background-color: #FF6666;}")

@@ -45,18 +45,21 @@ class VariableModel(QAbstractItemModel):
         document = self.data_source.get_cbs_dict()
         self.load_document(document)
 
-    def load_document(self, document: dict):
-        """Load model from a dictionary
+    def load_document(self, document: dict, field_filter: str = None):
+        """Load model from a dictionary.
+
+        If `field_filter` is provided (CODAC field-based search), only fields whose key
+        contains the filter string are added to the tree for each variable.
         """
 
         self.beginResetModel()
 
         if self.data_source.source_type == DS_IMASPY_TYPE:
             self.root_item = ImasVarItem.load(document)
-        elif self.data_source.source_type == DS_CODAC_TYPE or self.data_source.source_type == DS_CSV_TYPE: 
+        elif self.data_source.source_type == DS_CODAC_TYPE or self.data_source.source_type == DS_CSV_TYPE:
             self.root_item = UdaVarItem.load(document, UdaVarItem(data_type="folder"), consulted=True)
 
-        self.root_item.check_folder(self.data_source)
+        self.root_item.check_folder(self.data_source, field_filter=field_filter)
         self.endResetModel()
 
     def expand(self, item):
@@ -231,7 +234,7 @@ class VarItem:
              path: object = None, consulted: object = False) -> "VarItem":
         pass
 
-    def check_folder(self, data_source):
+    def check_folder(self, data_source, field_filter: str = None):
         pass
 
     def get_folder_str(self) -> str:
@@ -369,7 +372,7 @@ class UdaVarItem(VarItem):
 
         return common_parts
 
-    def check_folder(self, data_source):
+    def check_folder(self, data_source, field_filter: str = None):
         self.consulted = True
         for child in self.children:
             if child.has_child() or child.consulted:
@@ -390,6 +393,11 @@ class UdaVarItem(VarItem):
                 child.description = data['value']['description']
                 child.dimension = data['value']['dimensionality']
             else:
+                # When a field filter is active, only keep fields whose key contains it.
+                if field_filter:
+                    data = {k: v for k, v in data.items() if field_filter in k}
+                    if not data:
+                        continue
                 child.data_type = 'nested_variable'
                 UdaVarItem.load_nested_child(self.group_common_parts(data), child, consulted=True)
 
