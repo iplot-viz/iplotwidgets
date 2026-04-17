@@ -15,6 +15,7 @@ class VariableModel(QAbstractItemModel):
         self.root_item = VarItem()
         self.data_source = data_source
         self.search: bool = search
+        self.field_filter: str = None
         self.clear()
 
     def supportedDropActions(self):
@@ -45,18 +46,24 @@ class VariableModel(QAbstractItemModel):
         document = self.data_source.get_cbs_dict()
         self.load_document(document)
 
-    def load_document(self, document: dict):
-        """Load model from a dictionary
+    def load_document(self, document: dict, field_filter: str = None):
+        """Load model from a dictionary.
+
+        If `field_filter` is provided (CODAC field-based search), only fields whose key
+        contains the filter string are added to the tree for each variable. The filter
+        is persisted so subsequent `expand()` calls (triggered by the user unfolding a
+        variable in the tree) also apply it.
         """
+        self.field_filter = field_filter
 
         self.beginResetModel()
 
         if self.data_source.source_type == DS_IMASPY_TYPE:
             self.root_item = ImasVarItem.load(document)
-        elif self.data_source.source_type == DS_CODAC_TYPE or self.data_source.source_type == DS_CSV_TYPE: 
+        elif self.data_source.source_type == DS_CODAC_TYPE or self.data_source.source_type == DS_CSV_TYPE:
             self.root_item = UdaVarItem.load(document, UdaVarItem(data_type="folder"), consulted=True)
 
-        self.root_item.check_folder(self.data_source)
+        self.root_item.check_folder(self.data_source, field_filter=field_filter)
         self.endResetModel()
 
     def expand(self, item):
@@ -71,7 +78,7 @@ class VariableModel(QAbstractItemModel):
             if data:
                 item.load(data, item, consulted=True)
 
-        item.check_folder(self.data_source)
+        item.check_folder(self.data_source, field_filter=self.field_filter)
 
     def data(self, index: Union[QModelIndex, QPersistentModelIndex], role: int = ...) -> Any:
         """Override from QAbstractItemModel
@@ -231,7 +238,7 @@ class VarItem:
              path: object = None, consulted: object = False) -> "VarItem":
         pass
 
-    def check_folder(self, data_source):
+    def check_folder(self, data_source, field_filter: str = None):
         pass
 
     def get_folder_str(self) -> str:
@@ -369,27 +376,44 @@ class UdaVarItem(VarItem):
 
         return common_parts
 
-    def check_folder(self, data_source):
+    def check_folder(self, data_source, field_filter: str = None):
         self.consulted = True
+        # When a field filter is active, variables whose field structure does not
+        # contain it (no data, single-value leaves, or nested with no matching key)
+        # are pruned from the tree so they do not appear as empty/dead folders.
+        to_remove = []
         for child in self.children:
             if child.has_child() or child.consulted:
                 continue
             data = data_source.get_var_fields(variable=child.key)
 
             if not data:
+                if field_filter:
+                    to_remove.append(child)
                 continue
 
             if set(data.keys()) == {'status_id', 'val', 'secs', 'severity_id', 'nanosecs'}:
+                if field_filter:
+                    to_remove.append(child)
+                    continue
                 child.data_type = data['val']['type']
                 child.unit = data['val']['units']
                 child.description = data['val']['description']
                 child.dimension = data['val']['dimensionality']
             elif list(data.keys()) == ['value']:
+                if field_filter:
+                    to_remove.append(child)
+                    continue
                 child.data_type = data['value']['type']
                 child.unit = data['value']['units']
                 child.description = data['value']['description']
                 child.dimension = data['value']['dimensionality']
             else:
+                if field_filter:
+                    data = {k: v for k, v in data.items() if field_filter in k}
+                    if not data:
+                        to_remove.append(child)
+                        continue
                 child.data_type = 'nested_variable'
                 UdaVarItem.load_nested_child(self.group_common_parts(data), child, consulted=True)
 
@@ -402,6 +426,9 @@ class UdaVarItem(VarItem):
                                                   dimension=val['dimensionality'],
                                                   data_type=val['type']
                                                   ))
+
+        if field_filter and to_remove:
+            self.children = [c for c in self.children if c not in to_remove]
 
 
 class ImasVarItem(VarItem):
