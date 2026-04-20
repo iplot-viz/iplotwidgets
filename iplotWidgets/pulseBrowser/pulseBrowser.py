@@ -63,6 +63,10 @@ class PulseBrowser(QWidget):
             self.refresh_btn = QPushButton('Refresh')
             self.refresh_btn.clicked.connect(self.refresh)
 
+            self.source_filter_combo = QComboBox()
+            self.source_filter_combo.addItems(["All", "Local", "SIMDB"])
+            self.source_filter_combo.setCurrentText("All")
+            self.source_filter_combo.currentTextChanged.connect(self.apply_source_filter)
             self.previous_page = QPushButton('<')
             self.previous_page.clicked.connect(self.previous_pulses)
             self.next_page = QPushButton('>')
@@ -86,6 +90,7 @@ class PulseBrowser(QWidget):
             top_h_layout = QHBoxLayout()
             top_h_layout.addWidget(self.sources_combo)
             top_h_layout.addWidget(self.refresh_btn)
+            top_h_layout.addWidget(self.source_filter_combo)
             top_h_layout.addWidget(self.searchbar)
             top_h_layout.addWidget(self.search_btn)
             top_v_layout = QVBoxLayout()
@@ -125,11 +130,31 @@ class PulseBrowser(QWidget):
     def get_current_source(self) -> DataSource:
         return self.sources_combo.currentData()
 
+    def _filter_by_source(self, df) -> "pd.DataFrame":
+        selected = self.source_filter_combo.currentText()
+        if selected == "Local" and "source" in df.columns:
+            return df[df["source"].astype(str).str.lower() == "local"].reset_index(drop=True)
+        if selected == "SIMDB" and "source" in df.columns:
+            return df[df["source"].astype(str).str.lower() == "simdb"].reset_index(drop=True)
+        return df
+
+    def apply_source_filter(self):
+        data_source = self.get_current_source()
+        if not hasattr(data_source, 'get_pulses_df'):
+            return
+        full_df = data_source.get_pulses_df()
+        filtered = self._filter_by_source(full_df)
+        model = self.table.get_current_model()
+        model.load_document(filtered)
+        self.update_page_size()
+        self.update_page_label()
+
     def change_model(self):
         new_source = self.get_current_source()
-        # self.table.reset_page()
         self.table.load_model(new_source)
         self.table.adjust_columns(new_source)
+        # Apply source filter after the model is loaded
+        self.apply_source_filter()
         self.update_page_size()
         self.update_page_label()
 
@@ -239,6 +264,7 @@ class PulseBrowser(QWidget):
 
             data_source = self.get_current_source()
             document = data_source.get_pulses_df()
+            document = self._filter_by_source(document)
 
             self.progress_bar.setFormat("Loading pulses into the model")
             self.progress_bar.setValue(80)
