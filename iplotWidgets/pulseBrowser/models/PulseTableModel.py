@@ -1,8 +1,5 @@
 import math
 import os
-from pathlib import Path
-import pickle
-from datetime import datetime, timedelta
 from typing import Any, Union, List
 
 import pandas as pd
@@ -17,8 +14,6 @@ logger = setupLog.get_logger(__name__)
 class PulseTableModel(QAbstractTableModel):
     layoutChanged = Signal()
 
-    CACHE_TTL = timedelta(days=3) 
-
     REQUIRED_COLUMNS = {"uuid", "alias", "imas_uri"}
     HIDDEN_COLUMNS = {"uuid", "imas_uri", "dashboard_link"}
 
@@ -26,9 +21,6 @@ class PulseTableModel(QAbstractTableModel):
         super(PulseTableModel, self).__init__()
         self.data_source = data_source
         if self.data_source.source_type == DS_IMASPY_TYPE:
-            cache_dir = os.environ.get('IPLOT_DUMP_PATH', f"{Path.home()}/.local/1Dtool/cache")
-            os.makedirs(cache_dir, exist_ok=True)
-            self.CACHE_FILE = os.path.join(cache_dir, "pulses_df.pkl")
             self._loaded = False
             self._document: pd.DataFrame = pd.DataFrame()
         
@@ -140,33 +132,15 @@ class PulseTableModel(QAbstractTableModel):
             self.load()
         return self._document
 
-    def _cache_is_valid(self) -> bool:
-        """True if cache exists and is newer than TTL."""
-        if not os.path.exists(self.CACHE_FILE):
-            return False
-        mtime = datetime.fromtimestamp(os.path.getmtime(self.CACHE_FILE))
-        return (datetime.now() - mtime) < self.CACHE_TTL
-    
     def load(self) -> None:
         """
-        Load (or reload) the pulses DataFrame, using disk-cache with TTL.
-        Subsequent calls before TTL expires are<<1 s; after TTL, will re-fetch.
+        Load (or reload) the pulses DataFrame.
+        Disk caching with TTL is handled inside get_pulses_df().
         """
         if self.data_source.source_type == DS_IMASPY_TYPE:
             if self._loaded:
                 return
-
-            if self._cache_is_valid():
-                # fast load from disk
-                with open(self.CACHE_FILE, "rb") as f:
-                    df = pickle.load(f)
-            else:
-                df = self.data_source.get_pulses_df()    # ~20 s
-                if not df.empty:
-                    with open(self.CACHE_FILE, "wb") as f:
-                        pickle.dump(df, f)
-
-            # finally, update the model
+            df = self.data_source.get_pulses_df()
             self._document = df
             self.load_document(df)
             self._loaded = True
@@ -191,11 +165,11 @@ class PulseTableModel(QAbstractTableModel):
         if "uuid" in self.dataframe.columns:
             uuid_val = str(self.dataframe.at[self.dataframe.index[current_row], "uuid"])
         info = self.data_source.get_pulse_info(uuid=uuid_val)
-        print("====================================================")
-        print(f"uuid = {uuid_val}")
-        print("====================================================")
-        print(info)
-        print("====================================================")
+        logger.debug("====================================================")
+        logger.debug(f"uuid = {uuid_val}")
+        logger.debug("====================================================")
+        logger.debug(info)
+        logger.debug("====================================================")
 
     @staticmethod
     def format_duration(duration: pd.Timedelta) -> str:
