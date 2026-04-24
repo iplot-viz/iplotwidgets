@@ -1,5 +1,6 @@
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QTableView, QAbstractItemView, QHeaderView
+from PySide6.QtGui import QKeySequence
+from PySide6.QtWidgets import QApplication, QTableView, QAbstractItemView, QHeaderView
 
 from iplotDataAccess.appDataAccess import AppDataAccess
 from iplotWidgets.pulseBrowser.models.PulseTableModel import PulseTableModel
@@ -59,3 +60,30 @@ class PulseTable(QTableView):
 
     def get_pulse_info(self, row):
         self.get_current_model().get_pulse_info(row)
+
+    def keyPressEvent(self, event):
+        if event.matches(QKeySequence.StandardKey.Copy):
+            self._copy_selection_to_clipboard()
+            return
+        super().keyPressEvent(event)
+
+    def _copy_selection_to_clipboard(self):
+        indexes = self.selectionModel().selectedIndexes()
+        if not indexes:
+            return
+        rows = sorted({idx.row() for idx in indexes})
+        cols = sorted({idx.column() for idx in indexes})
+        model = self.model()
+        lines = []
+        if len(cols) > 1:
+            headers = [str(model.headerData(c, Qt.Orientation.Horizontal,
+                                            Qt.ItemDataRole.DisplayRole) or '')
+                       for c in cols]
+            lines.append('\t'.join(headers))
+        for row in rows:
+            values = []
+            for col in cols:
+                value = model.data(model.index(row, col), Qt.ItemDataRole.DisplayRole)
+                values.append('' if value is None else str(value))
+            lines.append('\t'.join(values))
+        QApplication.clipboard().setText('\n'.join(lines))

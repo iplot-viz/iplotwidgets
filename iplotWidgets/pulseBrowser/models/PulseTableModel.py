@@ -153,6 +153,12 @@ class PulseTableModel(QAbstractTableModel):
         # Clear previous dataframe if existed
         self.dataframe = new_df
 
+        for col in self.dataframe.columns:
+            if pd.api.types.is_datetime64_any_dtype(self.dataframe[col]):
+                self.dataframe = self.dataframe.sort_values(
+                    by=col, ascending=False, ignore_index=True)
+                break
+
         self.endResetModel()
 
     def get_pulse_info(self, row):
