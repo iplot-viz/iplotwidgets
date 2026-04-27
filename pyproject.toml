@@ -30,7 +30,7 @@ dependencies = [
 dynamic = ["version"]
 
 [project.optional-dependencies]
-test = ["pytest >= 6.0"]
+test = ["pytest >= 6.0", "pytest-cov"]
 
 [project.urls]
 Homepage = "https://github.com/iplot-viz/iplotwidgets"
