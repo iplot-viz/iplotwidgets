@@ -1,8 +1,6 @@
 import math
 import os
-from pathlib import Path
-import pickle
-from datetime import datetime, timedelta
+
 from typing import Any, Union, List
 
 import pandas as pd
@@ -16,16 +14,12 @@ logger = setupLog.get_logger(__name__)
 
 class PulseTableModel(QAbstractTableModel):
     layoutChanged = Signal()
-    
-    CACHE_TTL = timedelta(days=3) 
+
 
     def __init__(self, data_source: DataSource):
         super(PulseTableModel, self).__init__()
         self.data_source = data_source
         if self.data_source.source_type == DS_IMASPY_TYPE:
-            cache_dir = os.environ.get('IPLOT_DUMP_PATH', f"{Path.home()}/.local/1Dtool/cache")
-            os.makedirs(cache_dir, exist_ok=True)
-            self.CACHE_FILE = os.path.join(cache_dir, "pulses_df.pkl")
             self._loaded = False
             self._document: pd.DataFrame = pd.DataFrame()
         
@@ -79,8 +73,8 @@ class PulseTableModel(QAbstractTableModel):
     def get_pulse(self, row: int):
         current_row = row + self._current_page * self._page_size
         if self.data_source.source_type == DS_IMASPY_TYPE:
-            run = int(self.dataframe.iloc[current_row, 1])
-            return self.dataframe.iloc[current_row, 0] + '/' + str(run)
+            if "imas_uri" in self.dataframe.columns:
+                return self.dataframe.at[self.dataframe.index[current_row], "imas_uri"]
         else:
             return self.dataframe.iloc[current_row, 0]
 
@@ -111,30 +105,16 @@ class PulseTableModel(QAbstractTableModel):
             self.load()
         return self._document
 
-    def _cache_is_valid(self) -> bool:
-        """True if cache exists and is newer than TTL."""
-        if not os.path.exists(self.CACHE_FILE):
-            return False
-        mtime = datetime.fromtimestamp(os.path.getmtime(self.CACHE_FILE))
-        return (datetime.now() - mtime) < self.CACHE_TTL
-    
+   
     def load(self) -> None:
         """
-        Load (or reload) the pulses DataFrame, using disk-cache with TTL.
-        Subsequent calls before TTL expires are<<1 s; after TTL, will re-fetch.
+        Load (or reload) the pulses DataFrame.
+        Disk caching with TTL is handled inside get_pulses_df().
         """
         if self.data_source.source_type == DS_IMASPY_TYPE:
             if self._loaded:
                 return
-
-            if self._cache_is_valid():
-                # fast load from disk
-                with open(self.CACHE_FILE, "rb") as f:
-                    df = pickle.load(f)
-            else:
-                df = self.data_source.get_pulses_df()    # ~20 s
-                with open(self.CACHE_FILE, "wb") as f:
-                    pickle.dump(df, f)
+            df = self.data_source.get_pulses_df()
 
             # finally, update the model
             self._document = df
@@ -162,14 +142,26 @@ class PulseTableModel(QAbstractTableModel):
         self.endResetModel()
 
     def get_pulse_info(self, row):
-        pulse = int(self.dataframe.iloc[row, 0])
-        run = int(self.dataframe.iloc[row, 1])
-        info = self.data_source.get_pulse_info(pulse=pulse, run=run)
-        print("====================================================")
-        print(f"pulse = {pulse} run={run}")
-        print("====================================================")
-        print(info)
-        print("====================================================")
+        if self.data_source.source_type == DS_IMASPY_TYPE:
+            current_row = row + self._current_page * self._page_size
+            uuid_val = None
+            if "uuid" in self.dataframe.columns:
+                uuid_val = str(self.dataframe.at[self.dataframe.index[current_row], "uuid"])
+            info = self.data_source.get_pulse_info(uuid=uuid_val)
+            print("====================================================")
+            print(f"uuid = {uuid_val}")
+            print("====================================================")
+            print(info)
+            print("====================================================")
+        else:
+            pulse = int(self.dataframe.iloc[row, 0])
+            run = int(self.dataframe.iloc[row, 1])
+            info = self.data_source.get_pulse_info(pulse=pulse, run=run)
+            print("====================================================")
+            print(f"pulse = {pulse} run={run}")
+            print("====================================================")
+            print(info)
+            print("====================================================")
 
     @staticmethod
     def format_duration(duration: pd.Timedelta) -> str:
