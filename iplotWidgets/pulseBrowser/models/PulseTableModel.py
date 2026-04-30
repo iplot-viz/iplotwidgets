@@ -74,7 +74,12 @@ class PulseTableModel(QAbstractTableModel):
         current_row = row + self._current_page * self._page_size
         if self.data_source.source_type == DS_IMASPY_TYPE:
             if "imas_uri" in self.dataframe.columns:
-                return self.dataframe.at[self.dataframe.index[current_row], "imas_uri"]
+                # Append cache_mode=none for UDA URIs
+                val = self.dataframe.at[self.dataframe.index[current_row], "imas_uri"]
+                if val and "uda" in val.lower() and "cache_mode=none" not in val:
+                    sep = "&" if "?" in val else "?"
+                    val = f"{val}{sep}cache_mode=none"
+                return val
         else:
             return self.dataframe.iloc[current_row, 0]
 
@@ -147,21 +152,22 @@ class PulseTableModel(QAbstractTableModel):
             uuid_val = None
             if "uuid" in self.dataframe.columns:
                 uuid_val = str(self.dataframe.at[self.dataframe.index[current_row], "uuid"])
+
             info = self.data_source.get_pulse_info(uuid=uuid_val)
-            print("====================================================")
-            print(f"uuid = {uuid_val}")
-            print("====================================================")
-            print(info)
-            print("====================================================")
+            logger.info("====================================================")
+            logger.info(f"uuid = {uuid_val}")
+            logger.info("====================================================")
+            logger.info(info)
+            logger.info("====================================================")
         else:
             pulse = int(self.dataframe.iloc[row, 0])
             run = int(self.dataframe.iloc[row, 1])
             info = self.data_source.get_pulse_info(pulse=pulse, run=run)
-            print("====================================================")
-            print(f"pulse = {pulse} run={run}")
-            print("====================================================")
-            print(info)
-            print("====================================================")
+            logger.info("====================================================")
+            logger.info(f"pulse = {pulse} run={run}")
+            logger.info("====================================================")
+            logger.info(info)
+            logger.info("====================================================")
 
     @staticmethod
     def format_duration(duration: pd.Timedelta) -> str:
