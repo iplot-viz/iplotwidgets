@@ -76,9 +76,11 @@ class PulseTableModel(QAbstractTableModel):
             if "imas_uri" in self.dataframe.columns:
                 # Append cache_mode=none for UDA URIs
                 val = self.dataframe.at[self.dataframe.index[current_row], "imas_uri"]
-                if val and "uda" in val.lower() and "cache_mode=none" not in val:
-                    sep = "&" if "?" in val else "?"
-                    val = f"{val}{sep}cache_mode=none"
+                if pd.notna(val) and isinstance(val, str):
+                    val_lower = val.lower()
+                    if "uda" in val_lower and "cache_mode=none" not in val:
+                        sep = "&" if "?" in val else "?"
+                        val = f"{val}{sep}cache_mode=none"
                 return val
         else:
             return self.dataframe.iloc[current_row, 0]
