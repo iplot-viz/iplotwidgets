@@ -3,7 +3,7 @@
 import pandas as pd
 import pytest
 from PySide6.QtCore import QItemSelection, QItemSelectionModel, Qt
-from PySide6.QtGui import QKeyEvent, QKeySequence
+from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QApplication
 
 from iplotWidgets.pulseBrowser.PulseTable import PulseTable

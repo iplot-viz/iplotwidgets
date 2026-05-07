@@ -65,6 +65,8 @@ def fast_pulse_browser(qapp, app_data_access, monkeypatch):
     monkeypatch.setattr(pb_module.time, 'sleep', lambda *a, **k: None)
     browser = PulseBrowser()
     yield browser
+    browser.deleteLater()
+    qapp.processEvents()
     PulseBrowser._instance = None
 
 

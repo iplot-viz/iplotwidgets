@@ -82,6 +82,17 @@ class PaginationTest(unittest.TestCase):
         self.model.page_size = 50
         self.assertEqual(self.model._current_page, 0)
 
+    def test_next_page_at_last_page_is_a_noop(self):
+        # 50 rows / 20 per page → pages 0, 1, 2. Walk to the last page.
+        self.model.next_page()
+        self.model.next_page()
+        self.assertEqual(self.model._current_page, 2)
+        # Calling next_page() again must not advance past the last page,
+        # otherwise rowCount() returns a negative number.
+        self.model.next_page()
+        self.assertEqual(self.model._current_page, 2)
+        self.assertGreaterEqual(self.model.rowCount(), 0)
+
     def test_get_real_page_is_one_indexed(self):
         self.assertEqual(self.model.get_real_page(), 1)
         self.model.next_page()

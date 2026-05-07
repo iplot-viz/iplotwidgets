@@ -1,67 +1,9 @@
 # Description: Behavioural tests for VariableBrowser search + glob translation.
 
-import re
-
 import pytest
 
 from iplotDataAccess.dataSource import DS_CODAC_TYPE
 from iplotWidgets.variableBrowser.variableBrowser import VariableBrowser
-
-
-class GlobToRegexTest:
-    """The glob-to-regex translation is the rule that protects users from
-    pathological patterns like ``EC*`` matching ``ECHO`` instead of just
-    things starting with ``EC``. The transformation is inline in
-    ``search()``; we exercise the same logic directly to pin its
-    semantics."""
-
-    @staticmethod
-    def _glob_to_regex(text: str) -> str:
-        """Replicate the inline transformation from VariableBrowser.search.
-
-        Done as a free helper so we can pin behaviour without spinning
-        up the full widget."""
-        return re.escape(text).replace(r'\*', '.*').replace(r'\?', '.')
-
-    def test_star_translates_to_dot_star(self):
-        assert self._glob_to_regex('EC*') == 'EC.*'
-
-    def test_question_translates_to_single_char(self):
-        assert self._glob_to_regex('A?B') == 'A.B'
-
-    def test_dot_is_escaped_so_it_matches_literally(self):
-        assert self._glob_to_regex('a.b') == r'a\.b'
-
-    def test_no_metachars_passes_through_escaped(self):
-        # Pure alphanumerics survive re.escape unchanged.
-        assert self._glob_to_regex('plain') == 'plain'
-
-    def test_combined_pattern(self):
-        assert self._glob_to_regex('EC*?b.c') == r'EC.*.b\.c'
-
-
-class FieldSyntaxTest:
-    """``variable/field`` syntax is CODAC-only — the ``/`` splits the
-    pattern into a search term and a field filter. Other backends use the
-    raw text. The split logic is in ``search()`` and would silently break
-    if someone added a generic ``/`` handler."""
-
-    @staticmethod
-    def _split_codac(text: str, source_type: str):
-        """Replicate the inline split rule from VariableBrowser.search."""
-        if source_type == DS_CODAC_TYPE and '/' in text:
-            return tuple(text.split('/', 1))
-        return text, None
-
-    def test_codac_with_slash_splits(self):
-        assert self._split_codac('VAR/field', DS_CODAC_TYPE) == ('VAR', 'field')
-
-    def test_codac_without_slash_keeps_text(self):
-        assert self._split_codac('VAR', DS_CODAC_TYPE) == ('VAR', None)
-
-    def test_non_codac_does_not_split_even_with_slash(self):
-        # CSV / IMAS sources use the raw pattern as-is.
-        assert self._split_codac('VAR/field', 'CSV') == ('VAR/field', None)
 
 
 class VariableBrowserConstructionTest:
@@ -155,6 +97,52 @@ class SearchFlowTest:
         fast_browser.search()
         assert fast_browser.search_btn.isEnabled()
 
+    def test_search_translates_glob_wildcards_into_regex(self, fast_browser,
+                                                          mock_data_source):
+        # ``EC*`` must reach the data source as ``.*EC.*.*`` (contains-mode)
+        # and not as the raw glob — otherwise UDA receives a regex that
+        # matches anything containing 'E'.
+        captured = {}
+        mock_data_source.get_var_dict = lambda **kw: captured.update(kw) or {}
+        fast_browser.type_search.setCurrentText("contains")
+        fast_browser.searchbar.setText("EC*")
+        fast_browser.search()
+        assert captured["pattern"] == ".*EC.*.*"
+        assert "field" not in captured
+
+    def test_search_escapes_regex_metacharacters(self, fast_browser,
+                                                  mock_data_source):
+        # A literal dot in the user input must be escaped so it does not
+        # become 'any character' in the regex passed to the data source.
+        captured = {}
+        mock_data_source.get_var_dict = lambda **kw: captured.update(kw) or {}
+        fast_browser.type_search.setCurrentText("startsWith")
+        fast_browser.searchbar.setText("a.b")
+        fast_browser.search()
+        assert captured["pattern"] == r"a\.b.*"
+
+    def test_search_splits_codac_field_syntax(self, fast_browser, mock_data_source):
+        # ``VAR/field`` on a CODAC source must split into pattern + field
+        # kwarg; on non-CODAC sources the slash is passed through verbatim.
+        mock_data_source.source_type = DS_CODAC_TYPE
+        captured = {}
+        mock_data_source.get_var_dict = lambda **kw: captured.update(kw) or {}
+        fast_browser.type_search.setCurrentText("contains")
+        fast_browser.searchbar.setText("VAR/field")
+        fast_browser.search()
+        assert captured["pattern"] == ".*VAR.*"
+        assert captured["field"] == "field"
+
+    def test_search_non_codac_does_not_split_on_slash(self, fast_browser,
+                                                       mock_data_source):
+        captured = {}
+        mock_data_source.get_var_dict = lambda **kw: captured.update(kw) or {}
+        fast_browser.type_search.setCurrentText("contains")
+        fast_browser.searchbar.setText("VAR/field")
+        fast_browser.search()
+        assert captured["pattern"] == ".*VAR/field.*"
+        assert "field" not in captured
+
 
 class UpdateDisplayTest:
     """The searchbar fires ``textChanged`` on every keystroke; with fewer
@@ -210,8 +198,6 @@ class AddToTableTest:
 
 
 # Expose pytest classes so collection picks them up.
-TestGlobToRegex = GlobToRegexTest
-TestFieldSyntax = FieldSyntaxTest
 TestVariableBrowserConstruction = VariableBrowserConstructionTest
 TestSearchFlow = SearchFlowTest
 TestUpdateDisplay = UpdateDisplayTest

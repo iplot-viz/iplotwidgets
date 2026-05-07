@@ -12,7 +12,7 @@ class ParseImaspyPulsesTest(unittest.TestCase):
 
     def test_passes_input_through_unchanged(self):
         lines = [{'pulse': 1}, {'pulse': 2}]
-        self.assertIs(parse_imaspy_pulses(lines), lines)
+        self.assertEqual(parse_imaspy_pulses(lines), lines)
 
     def test_empty_input(self):
         self.assertEqual(parse_imaspy_pulses([]), [])

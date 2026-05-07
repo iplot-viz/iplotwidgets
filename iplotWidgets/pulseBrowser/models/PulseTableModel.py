@@ -85,7 +85,8 @@ class PulseTableModel(QAbstractTableModel):
             return self.dataframe.iloc[current_row, 0]
 
     def next_page(self) -> None:
-        if self._current_page < self.get_total_pages():
+        # _current_page is 0-indexed; valid range is [0, total_pages - 1].
+        if self._current_page < self.get_total_pages() - 1:
             self._current_page += 1
             self.layoutChanged.emit()
 
