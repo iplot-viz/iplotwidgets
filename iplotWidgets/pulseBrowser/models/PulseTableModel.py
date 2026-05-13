@@ -1,5 +1,4 @@
 import math
-import os
 
 from typing import Any, Union, List
 
@@ -82,6 +81,8 @@ class PulseTableModel(QAbstractTableModel):
                         sep = "&" if "?" in val else "?"
                         val = f"{val}{sep}cache_mode=none"
                 return val
+            else:
+                return self.dataframe.iloc[current_row, 0]
         else:
             return self.dataframe.iloc[current_row, 0]
 
@@ -149,8 +150,8 @@ class PulseTableModel(QAbstractTableModel):
         self.endResetModel()
 
     def get_pulse_info(self, row):
+        current_row = row + self._current_page * self._page_size
         if self.data_source.source_type == DS_IMASPY_TYPE:
-            current_row = row + self._current_page * self._page_size
             uuid_val = None
             if "uuid" in self.dataframe.columns:
                 uuid_val = str(self.dataframe.at[self.dataframe.index[current_row], "uuid"])
@@ -162,8 +163,8 @@ class PulseTableModel(QAbstractTableModel):
             logger.info(info)
             logger.info("====================================================")
         else:
-            pulse = int(self.dataframe.iloc[row, 0])
-            run = int(self.dataframe.iloc[row, 1])
+            pulse = int(self.dataframe.iloc[current_row, 0])
+            run = int(self.dataframe.iloc[current_row, 1])
             info = self.data_source.get_pulse_info(pulse=pulse, run=run)
             logger.info("====================================================")
             logger.info(f"pulse = {pulse} run={run}")
