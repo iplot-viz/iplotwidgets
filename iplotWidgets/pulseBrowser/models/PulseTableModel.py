@@ -40,17 +40,27 @@ class PulseTableModel(QAbstractTableModel):
         self.layoutChanged.emit()
 
     def data(self, index: Union[QModelIndex, QPersistentModelIndex], role: int = ...) -> Any:
-        if not index.isValid() or role != Qt.ItemDataRole.DisplayRole:
+        if not index.isValid():
             return None
         row = index.row() + self._current_page * self._page_size
         col = index.column()
-        value = self.dataframe.iloc[row, col]
-        if isinstance(value, pd.Timestamp):
-            return value.strftime('%Y-%m-%d %H:%M:%S')
-        if isinstance(value, pd.Timedelta):
-            return self.format_duration(value)
+        col_name = self.dataframe.columns[col]
 
-        return value
+        if role == Qt.ItemDataRole.DisplayRole:
+            value = self.dataframe.iloc[row, col]
+            if isinstance(value, pd.Timestamp):
+                return value.strftime('%Y-%m-%d %H:%M:%S')
+            if isinstance(value, pd.Timedelta):
+                return self.format_duration(value)
+            return value
+        if self.data_source.source_type == DS_IMASPY_TYPE:
+            if role == Qt.ItemDataRole.UserRole:
+                if col_name == "uuid":
+                    link = self.dataframe.at[self.dataframe.index[row], "dashboard_link"]
+                    if pd.notna(link) and isinstance(link, str) and link:
+                        return link
+
+        return None
 
     def rowCount(self, parent: Union[QModelIndex, QPersistentModelIndex] = ...) -> int:
         return min(self._page_size, len(self.dataframe) - self._current_page * self._page_size)
