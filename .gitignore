@@ -49,4 +49,14 @@ venv.bak/
 
 # Cython debug symbols
 cython_debug/__pycache__/
-*.pyc
+
+# Coverage artifacts
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
