@@ -264,7 +264,7 @@ class UdaVarItem(VarItem):
         return self.data_type == "folder" or self.data_type == "nested_variable"
 
     def get_table_variable_str(self) -> str:
-        if self.dimension == [1]:
+        if self.dimension == [1] or len(self.dimension)==0:
             dimension = ''
         else:
             dimension = '[' + ']['.join('0' for _ in self.dimension) + ']'
@@ -272,7 +272,7 @@ class UdaVarItem(VarItem):
         return f'{self.key}{dimension}'
 
     def get_tree_variable_str(self):
-        if self.dimension == [1]:
+        if self.dimension == [1] or len(self.dimension)==0:
             dimension = ''
         else:
             dimension = '[' + ']['.join(str(v) for v in self.dimension) + ']'
