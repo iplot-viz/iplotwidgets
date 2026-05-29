@@ -187,24 +187,15 @@ class LoadNonImasPathTest(unittest.TestCase):
         self.assertEqual(model.rowCount(), 2)
 
 
-class ImasCacheTest(unittest.TestCase):
-    """The IMAS branch of ``load`` uses a disk pickle cache with a TTL.
-    The contract:
-    - on cold cache, fetch from the data source and write the pickle;
-    - on warm cache (file newer than TTL), skip the fetch and read from
-      disk;
-    - the in-memory ``_loaded`` flag prevents repeated work within the
-      same session.
-
-    These tests use ``IPLOT_DUMP_PATH`` to point at an isolated tmpdir
-    so the real ~/.local/1Dtool cache is not touched.
+class ImasLoadTest(unittest.TestCase):
+    """The IMAS branch delegates pulse retrieval to the data source.
+    Disk caching, if enabled, belongs to the data-source layer; the model
+    only keeps an in-memory ``_loaded`` flag to prevent repeated work
+    within the same instance.
     """
 
     def setUp(self):
-        import os, tempfile
         from iplotDataAccess.dataSource import DS_IMASPY_TYPE
-        self.tmp = tempfile.mkdtemp(prefix='iplotwidgets_imas_cache_')
-        os.environ['IPLOT_DUMP_PATH'] = self.tmp
 
         self.df = pd.DataFrame({'pulse': ['1', '2'], 'run': ['1', '2']})
         self.fetch_count = 0
@@ -218,44 +209,19 @@ class ImasCacheTest(unittest.TestCase):
             get_pulses_df=fake_fetch,
         )
 
-    def tearDown(self):
-        import os, shutil
-        os.environ.pop('IPLOT_DUMP_PATH', None)
-        shutil.rmtree(self.tmp, ignore_errors=True)
-
-    def test_cold_cache_fetches_and_writes_pickle(self):
-        import os
+    def test_load_fetches_from_data_source_and_populates_model(self):
         model = PulseTableModel(data_source=self.ds)
         model.load()
 
         self.assertEqual(self.fetch_count, 1, "first load must hit data source")
-        self.assertTrue(os.path.exists(model.CACHE_FILE),
-                        "first load must create the cache file")
         self.assertEqual(model.rowCount(), 2)
+        self.assertIs(model.document, self.df)
 
     def test_loaded_flag_prevents_second_fetch_in_same_instance(self):
         model = PulseTableModel(data_source=self.ds)
         model.load()
         model.load()  # second call must be a no-op.
         self.assertEqual(self.fetch_count, 1)
-
-    def test_warm_cache_skips_fetch_on_fresh_instance(self):
-        # First instance writes the cache.
-        first = PulseTableModel(data_source=self.ds)
-        first.load()
-        self.assertEqual(self.fetch_count, 1)
-
-        # Fresh instance reads from the cache; data source is not called.
-        second = PulseTableModel(data_source=self.ds)
-        second.load()
-        self.assertEqual(self.fetch_count, 1,
-                         "warm cache must skip the data-source fetch")
-        self.assertEqual(second.rowCount(), 2)
-
-    def test_cache_is_valid_returns_false_when_file_missing(self):
-        model = PulseTableModel(data_source=self.ds)
-        # Brand-new model: cache file hasn't been written yet.
-        self.assertFalse(model._cache_is_valid())
 
 
 if __name__ == '__main__':
