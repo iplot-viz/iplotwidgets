@@ -18,6 +18,7 @@ logger = setupLog.get_logger(__name__)
 class PulseBrowser(QWidget):
     cmd_finish = Signal(object)
     srch_finish = Signal(object)
+    update_finish = Signal(object)
     _instance = None
 
     def __new__(cls):
@@ -57,6 +58,9 @@ class PulseBrowser(QWidget):
             self.path_input = QLineEdit()
             self.add_to_mint_btn = QPushButton('Add to MINT')
             self.add_to_mint_btn.clicked.connect(self.add_pulse)
+            self.update_pulse_btn = QPushButton('Update Pulse')
+            self.update_pulse_btn.clicked.connect(self.request_update_pulse)
+            self.update_pulse_btn.setVisible(False)
 
             self.search_btn = QPushButton('Search')
             self.search_btn.clicked.connect(self.search)
@@ -93,7 +97,10 @@ class PulseBrowser(QWidget):
             top_v_layout.addWidget(self.progress_bar)
 
             bot_v_layout = QVBoxLayout()
-            bot_v_layout.addWidget(self.add_to_mint_btn)
+            bot_h_layout = QHBoxLayout()
+            bot_h_layout.addWidget(self.add_to_mint_btn)
+            bot_h_layout.addWidget(self.update_pulse_btn)
+            bot_v_layout.addLayout(bot_h_layout)
 
             # Pagination
             pagination_layout = QHBoxLayout()
@@ -182,6 +189,23 @@ class PulseBrowser(QWidget):
         elif self.flag in ("button", "time_range", "pulse_id"):
             self.srch_finish.emit(pulses)
         self.table.clearSelection()
+
+    def request_update_pulse(self):
+        # Update is single-pulse; first selected row wins.
+        indexes = self.table.selectedIndexes()
+        rows = sorted({ix.row() for ix in indexes})
+        if not rows:
+            return
+        pulse = self.table.models[self.table.current_model_name].get_pulse(rows[0])
+        self.update_finish.emit(pulse)
+        self.table.clearSelection()
+
+    def set_update_mode(self, enabled: bool):
+        # Only one action button is visible at a time. Callers must set
+        # the desired mode before showing the singleton browser.
+        on = bool(enabled)
+        self.update_pulse_btn.setVisible(on)
+        self.add_to_mint_btn.setVisible(not on)
 
     def search(self):
         text = self.searchbar.text()
