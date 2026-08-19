@@ -3,8 +3,8 @@ import time
 
 import pandas as pd
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox, QHBoxLayout, QVBoxLayout, \
-    QProgressBar, QSplitter
+from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox, QCheckBox, QHBoxLayout, \
+    QVBoxLayout, QProgressBar, QSplitter
 from PySide6.QtCore import Qt, Signal
 
 from iplotDataAccess.dataSource import DataSource, DS_CODAC_TYPE
@@ -74,12 +74,17 @@ class VariableBrowser(QWidget):
         self.sources_combo.setCurrentText(AppDataAccess.da.get_default_ds_name())
         self.sources_combo.currentTextChanged.connect(self.change_model)
 
+        # Only shown for sources with a controls metadata server configured.
+        self.hmi_check = QCheckBox('Important variables')
+        self.hmi_check.toggled.connect(self.toggle_hmi)
+
         top_h_layout = QHBoxLayout()
         top_h_layout.addWidget(self.sources_combo)
         top_h_layout.addWidget(self.refresh_btn)
         top_h_layout.addWidget(self.searchbar)
         top_h_layout.addWidget(self.type_search)
         top_h_layout.addWidget(self.search_btn)
+        top_h_layout.addWidget(self.hmi_check)
         top_v_layout = QVBoxLayout()
         top_v_layout.addLayout(top_h_layout)
         top_v_layout.addWidget(self.progress_bar)
@@ -113,6 +118,7 @@ class VariableBrowser(QWidget):
         main_v_layout.addLayout(top_v_layout)
         main_v_layout.addWidget(self.splitter)
         self.setLayout(main_v_layout)
+        self._update_hmi_visibility()
 
         self.finish_btn.clicked.connect(self.finish)
 
@@ -121,16 +127,86 @@ class VariableBrowser(QWidget):
 
     def change_model(self):
         new_source = self.get_current_source()
-        self.tree.load_model(new_source)
+        self._update_hmi_visibility()
+        if self.hmi_check.isChecked():
+            self.load_hmi_model()
+        else:
+            self.tree.load_model(new_source)
+
+    def _update_hmi_visibility(self):
+        # getattr keeps the widget working against an iplotDataAccess without
+        # controls metadata support yet.
+        available = bool(getattr(self.get_current_source(), 'controls_metadata', None))
+        if not available:
+            self.hmi_check.setChecked(False)
+        self.hmi_check.setVisible(available)
+
+    def toggle_hmi(self, checked):
+        if checked:
+            self.load_hmi_model()
+        else:
+            self.tree.load_model(self.get_current_source())
+
+    def get_hmi_vars(self, refresh=False) -> dict:
+        data_source = self.get_current_source()
+        getter = getattr(data_source, 'get_hmi_var_dict', None)
+        return getter(refresh=refresh) if getter else {}
+
+    def _hmi_document(self, names) -> dict:
+        # Group the flat variable list the same way a server search result is
+        # displayed; sources without that parser get a flat tree.
+        parser = getattr(self.get_current_source(), 'parse_search_to_dict', None)
+        names = sorted(names)
+        return parser(names) if parser else {name: '' for name in names}
+
+    def load_hmi_model(self, refresh=False):
+        hmi_vars = self.get_hmi_vars(refresh=refresh)
+        self.tree.load_hmi_model(self.get_current_source(), self._hmi_document(hmi_vars), hmi_vars)
 
     def update_display(self):
         text = self.searchbar.text()
         if len(text) < 3:
-            self.tree.set_model(self.get_current_source().name)
+            if self.hmi_check.isChecked():
+                self.tree.set_model(f'{self.get_current_source().name}:HMI')
+            else:
+                self.tree.set_model(self.get_current_source().name)
+
+    def _build_pattern(self, text: str) -> str:
+        # Treat user input as a glob (escape regex metacharacters and translate
+        # the glob wildcards * and ? to their regex equivalents). Without this,
+        # a user typing "EC*" would build ".*EC*.*" and match any string
+        # containing "E" (since C* means zero-or-more C in regex).
+        text = re.escape(text).replace(r'\*', '.*').replace(r'\?', '.')
+
+        type_search = self.type_search.currentText()
+        if type_search == 'startsWith':
+            return f'{text}.*'
+        elif type_search == 'contains':
+            return f'.*{text}.*'
+        elif type_search == 'endsWith':
+            return f'.*{text}'
+        return ''
+
+    def search_hmi(self, text):
+        """Filter the HMI variable list locally: unlike the server search, the
+        pattern is also matched against the description and the unit."""
+        hmi_vars = self.get_hmi_vars()
+        pattern = re.compile(self._build_pattern(text), re.IGNORECASE)
+        found = {name: meta for name, meta in hmi_vars.items()
+                 if pattern.fullmatch(name)
+                 or pattern.fullmatch(meta.get('description', ''))
+                 or pattern.fullmatch(meta.get('units', ''))}
+
+        self.tree.set_model('SEARCH')
+        self.tree.models['SEARCH'].data_source = self.get_current_source()
+        self.tree.models['SEARCH'].load_document(self._hmi_document(found), metadata=found)
 
     def search(self):
         text = self.searchbar.text()
         if text == '':
+            return
+        if self.hmi_check.isChecked():
+            self.search_hmi(text)
             return
         self.search_btn.setEnabled(False)
         self.progress_bar.show()
@@ -140,7 +216,6 @@ class VariableBrowser(QWidget):
 
         self.tree.set_model('SEARCH')
 
-        type_search = self.type_search.currentText()
         data_source = self.get_current_source()
 
         # Parse "variable/field" syntax (CODAC_UDA only)
@@ -149,20 +224,7 @@ class VariableBrowser(QWidget):
         if data_source.source_type == DS_CODAC_TYPE and '/' in text:
             search_text, field = text.split('/', 1)
 
-        # Treat user input as a glob (escape regex metacharacters and translate
-        # the glob wildcards * and ? to their regex equivalents). Without this,
-        # a user typing "EC*" would build ".*EC*.*" and match any string
-        # containing "E" (since C* means zero-or-more C in regex).
-        search_text = re.escape(search_text).replace(r'\*', '.*').replace(r'\?', '.')
-
-        if type_search == 'startsWith':
-            pattern = f'{search_text}.*'
-        elif type_search == 'contains':
-            pattern = f'.*{search_text}.*'
-        elif type_search == 'endsWith':
-            pattern = f'.*{search_text}'
-        else:
-            pattern = ''
+        pattern = self._build_pattern(search_text)
         self.tree.models['SEARCH'].data_source = data_source
         try:
             if field:
@@ -230,6 +292,9 @@ class VariableBrowser(QWidget):
         self.tableView.clear_table()
 
     def refresh(self):
+        if self.hmi_check.isChecked():
+            self.load_hmi_model(refresh=True)
+            return
         try:
             self.refresh_btn.setEnabled(False)  # Disable the button while refreshing
             self.progress_bar.show()

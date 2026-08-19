@@ -46,13 +46,17 @@ class VariableModel(QAbstractItemModel):
         document = self.data_source.get_cbs_dict()
         self.load_document(document)
 
-    def load_document(self, document: dict, field_filter: str = None):
+    def load_document(self, document: dict, field_filter: str = None, metadata: dict = None):
         """Load model from a dictionary.
 
         If `field_filter` is provided (CODAC field-based search), only fields whose key
         contains the filter string are added to the tree for each variable. The filter
         is persisted so subsequent `expand()` calls (triggered by the user unfolding a
         variable in the tree) also apply it.
+
+        If `metadata` is provided (controls metadata server), the unit, description
+        and data type of each leaf come from it and no per-variable server lookup
+        is performed.
         """
         self.field_filter = field_filter
 
@@ -63,6 +67,8 @@ class VariableModel(QAbstractItemModel):
         elif self.data_source.source_type == DS_CODAC_TYPE or self.data_source.source_type == DS_CSV_TYPE:
             self.root_item = UdaVarItem.load(document, UdaVarItem(data_type="folder"), consulted=True)
 
+        if metadata:
+            self.root_item.apply_metadata(metadata)
         self.root_item.check_folder(self.data_source, field_filter=field_filter)
         self.endResetModel()
 
@@ -240,6 +246,22 @@ class VarItem:
 
     def check_folder(self, data_source, field_filter: str = None):
         pass
+
+    def apply_metadata(self, metadata: Dict):
+        """Attach externally provided metadata to the subtree.
+
+        Every item is marked consulted so neither ``check_folder`` nor a later
+        ``expand`` triggers a per-variable server lookup: the metadata source
+        is authoritative for this tree.
+        """
+        self.consulted = True
+        info = metadata.get(self.key)
+        if info and not self.has_child():
+            self.unit = info.get('units', '')
+            self.description = info.get('description', '')
+            self.data_type = info.get('type', '')
+        for child in self.children:
+            child.apply_metadata(metadata)
 
     def get_folder_str(self) -> str:
         pass

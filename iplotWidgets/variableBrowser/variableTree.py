@@ -49,6 +49,13 @@ class VariableTree(QTreeView):
 
         self.setModel(self.models[ds_name])
 
+    def load_hmi_model(self, data_source, document, metadata):
+        key = f'{data_source.name}:HMI'
+        if key not in self.models:
+            self.models[key] = VariableModel(data_source=data_source)
+        self.models[key].load_document(document, metadata=metadata)
+        self.setModel(self.models[key])
+
     def set_model(self, data_source_name):
         if data_source_name in self.models:
             self.setModel(self.models[data_source_name])
