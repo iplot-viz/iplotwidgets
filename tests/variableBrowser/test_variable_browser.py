@@ -336,6 +336,39 @@ class HmiVariablesTest:
         tree.expand_branch(top)
         assert tree.isExpanded(top) and tree.isExpanded(nested)
 
+    def test_search_result_double_click_expands_the_whole_branch(self, fast_browser,
+                                                                 mock_data_source):
+        mock_data_source.source_type = DS_CODAC_TYPE
+        search_model = fast_browser.tree.models['SEARCH']
+        search_model.data_source = mock_data_source
+        search_model.load_document({'TOP': {'MID': {'LEAF': ''}}})
+        fast_browser.tree.set_model('SEARCH')
+
+        tree = fast_browser.tree
+        model = tree.model()
+        top = model.index(0, 0)
+        nested = model.index(0, 0, top)
+        tree.expand_branch(top)
+        assert tree.isExpanded(top) and tree.isExpanded(nested)
+
+    def test_lazy_codac_tree_double_click_expands_one_level_only(self, fast_browser,
+                                                                 mock_data_source):
+        # Recursing the lazily loaded tree would fire one blocking server
+        # query per level and per child; a double-click there opens a
+        # single level.
+        mock_data_source.source_type = DS_CODAC_TYPE
+        model = fast_browser.tree.models[mock_data_source.name]
+        model.load_document({'TOP': {'MID': {'LEAF': ''}}})
+        fast_browser.tree.set_model(mock_data_source.name)
+
+        tree = fast_browser.tree
+        model = tree.model()
+        top = model.index(0, 0)
+        nested = model.index(0, 0, top)
+        tree.expand_branch(top)
+        assert tree.isExpanded(top)
+        assert not tree.isExpanded(nested)
+
 
 # Expose pytest classes so collection picks them up.
 TestVariableBrowserConstruction = VariableBrowserConstructionTest

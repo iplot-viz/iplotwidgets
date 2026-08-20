@@ -2,6 +2,7 @@ from PySide6.QtGui import QCursor
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QTreeView, QToolTip, QAbstractItemView
 from iplotDataAccess.appDataAccess import AppDataAccess
+from iplotDataAccess.dataSource import DS_CODAC_TYPE
 from iplotWidgets.variableBrowser.models.mtJsonModel import VariableModel
 
 
@@ -46,15 +47,31 @@ class VariableTree(QTreeView):
         self.get_model().layoutChanged.emit()
 
     def expand_branch(self, index):
-        """Expand a node and every descendant. Going through QTreeView.expand
-        keeps the expanded signal firing, so lazily loaded levels are fetched
-        before their own children are visited."""
+        """Expand a node and every descendant.
+
+        The full walk is only done where the data is already local: Qt
+        expands a synoptic or non-CODAC document in one pass, and a CODAC
+        search result is recursed so each level still fetches its metadata.
+        The lazily loaded CODAC tree expands a single level instead —
+        recursing it would fire one blocking server query per level and per
+        child on the GUI thread."""
         if not index.isValid():
             return
+        model = self.get_model()
+        if model.synoptic or model.data_source.source_type != DS_CODAC_TYPE:
+            self.expandRecursively(index)
+        elif model.search:
+            self._expand_loaded_branch(index)
+        else:
+            QTreeView.expand(self, index)
+
+    def _expand_loaded_branch(self, index):
+        # Going through QTreeView.expand keeps the expanded signal firing,
+        # so each level loads its metadata before its children are visited.
         QTreeView.expand(self, index)
         model = self.model()
         for row in range(model.rowCount(index)):
-            self.expand_branch(model.index(row, 0, index))
+            self._expand_loaded_branch(model.index(row, 0, index))
 
     def load_model(self, data_source):
         ds_name = data_source.name

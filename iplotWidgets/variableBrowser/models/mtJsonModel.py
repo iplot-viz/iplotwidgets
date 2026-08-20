@@ -15,6 +15,7 @@ class VariableModel(QAbstractItemModel):
         self.root_item = VarItem()
         self.data_source = data_source
         self.search: bool = search
+        self.synoptic: bool = False
         self.field_filter: str = None
         self.clear()
 
@@ -59,6 +60,7 @@ class VariableModel(QAbstractItemModel):
         is performed.
         """
         self.field_filter = field_filter
+        self.synoptic = bool(metadata)
 
         self.beginResetModel()
 
