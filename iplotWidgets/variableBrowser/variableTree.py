@@ -22,6 +22,10 @@ class VariableTree(QTreeView):
         self.setDropIndicatorShown(True)
         self.setDragDropMode(QAbstractItemView.InternalMove)
         self.expanded.connect(self.expand)
+        # Double-click expands the whole branch instead of toggling one
+        # level, so search results do not have to be unfolded by hand.
+        self.setExpandsOnDoubleClick(False)
+        self.doubleClicked.connect(self.expand_branch)
         self.load_model(AppDataAccess.da.default_ds)
         self.dragged_item = None
 
@@ -40,6 +44,17 @@ class VariableTree(QTreeView):
     def expand(self, index):
         self.get_model().expand(index.internalPointer())
         self.get_model().layoutChanged.emit()
+
+    def expand_branch(self, index):
+        """Expand a node and every descendant. Going through QTreeView.expand
+        keeps the expanded signal firing, so lazily loaded levels are fetched
+        before their own children are visited."""
+        if not index.isValid():
+            return
+        QTreeView.expand(self, index)
+        model = self.model()
+        for row in range(model.rowCount(index)):
+            self.expand_branch(model.index(row, 0, index))
 
     def load_model(self, data_source):
         ds_name = data_source.name
@@ -65,6 +80,10 @@ class VariableTree(QTreeView):
             return
         ix = index.internalPointer()
         if ix.has_child():
+            return
+        # Synoptic leaves already show unit, data type and description in
+        # their label; a tooltip would only repeat it.
+        if getattr(ix, 'synoptic', False):
             return
         QToolTip.showText(
             QCursor.pos(),

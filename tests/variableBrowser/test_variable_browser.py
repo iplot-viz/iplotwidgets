@@ -216,7 +216,7 @@ def hmi_browser(qapp, app_data_access, mock_data_source, monkeypatch):
 
 
 class HmiVariablesTest:
-    """The 'Important variables' check box drives the controls metadata
+    """The 'Synoptic variables' check box drives the controls metadata
     (HMI) mode: it only appears for sources with a controlsmetadata
     server, replaces the tree with the REST-provided variable list, and
     switches the search to a local one that also matches description
@@ -295,6 +295,46 @@ class HmiVariablesTest:
         hmi_browser.searchbar.setText('ab')
         hmi_browser.update_display()
         assert hmi_browser.tree.model() is hmi_browser.tree.models[f'{mock_data_source.name}:HMI']
+
+    def test_synoptic_leaf_label_carries_unit_type_and_description(self, hmi_browser):
+        # Label contract: unit between square brackets, description after
+        # the data type, all in the label itself.
+        hmi_browser.hmi_check.setChecked(True)
+        leaves = {item.key: item for item in hmi_browser.tree.model().root_item.children}
+        assert leaves['VAR-A:FT01'].synoptic
+        assert (leaves['VAR-A:FT01'].get_tree_variable_str()
+                == 'VAR-A:FT01 [m3/s] float Coolant flow')
+
+    def test_synoptic_leaf_shows_no_tooltip(self, hmi_browser, monkeypatch):
+        # The label already carries the metadata; a tooltip would repeat it.
+        import iplotWidgets.variableBrowser.variableTree as vt_module
+        shown = []
+        monkeypatch.setattr(vt_module.QToolTip, 'showText',
+                            lambda *a, **k: shown.append(a))
+        hmi_browser.hmi_check.setChecked(True)
+        leaf_index = hmi_browser.tree.model().index(0, 0)
+        hmi_browser.tree.handle_item_entered(leaf_index)
+        assert shown == []
+
+    def test_double_click_handler_expands_the_whole_branch(self, hmi_browser,
+                                                           mock_data_source):
+        def parse(names):
+            document = {}
+            for name in names:
+                head, tail = name.split('-', 1)
+                document.setdefault(head, {}).setdefault(tail.split(':')[0], {})[name] = ''
+            return document
+
+        mock_data_source.parse_search_to_dict = parse
+        hmi_browser.hmi_check.setChecked(True)
+        tree = hmi_browser.tree
+        model = tree.model()
+
+        top = model.index(0, 0)
+        nested = model.index(0, 0, top)
+        assert not tree.isExpanded(top) and not tree.isExpanded(nested)
+        tree.expand_branch(top)
+        assert tree.isExpanded(top) and tree.isExpanded(nested)
 
 
 # Expose pytest classes so collection picks them up.

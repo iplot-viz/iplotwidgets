@@ -211,6 +211,9 @@ class VarItem:
         self.description = description
         self.dimension = dimension
         self.data_type = data_type
+        # Synoptic leaves (controls metadata) carry their full metadata in
+        # the tree label itself instead of the tooltip.
+        self.synoptic = False
         self.children = []
 
     def is_folder(self) -> bool:
@@ -260,6 +263,7 @@ class VarItem:
             self.unit = info.get('units', '')
             self.description = info.get('description', '')
             self.data_type = info.get('type', '')
+            self.synoptic = True
         for child in self.children:
             child.apply_metadata(metadata)
 
@@ -294,6 +298,8 @@ class UdaVarItem(VarItem):
         return f'{self.key}{dimension}'
 
     def get_tree_variable_str(self):
+        if self.synoptic:
+            return f'{self.key} [{self.unit}] {self.data_type} {self.description}'
         if self.dimension == [1] or len(self.dimension)==0:
             dimension = ''
         else:

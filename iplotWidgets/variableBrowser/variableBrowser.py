@@ -75,7 +75,7 @@ class VariableBrowser(QWidget):
         self.sources_combo.currentTextChanged.connect(self.change_model)
 
         # Only shown for sources with a controls metadata server configured.
-        self.hmi_check = QCheckBox('Important variables')
+        self.hmi_check = QCheckBox('Synoptic variables')
         self.hmi_check.toggled.connect(self.toggle_hmi)
 
         top_h_layout = QHBoxLayout()
