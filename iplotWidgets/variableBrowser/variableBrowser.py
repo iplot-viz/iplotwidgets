@@ -171,12 +171,16 @@ class VariableBrowser(QWidget):
             else:
                 self.tree.set_model(self.get_current_source().name)
 
-    def _build_pattern(self, text: str) -> str:
+    @staticmethod
+    def _glob_to_regex(text: str) -> str:
         # Treat user input as a glob (escape regex metacharacters and translate
         # the glob wildcards * and ? to their regex equivalents). Without this,
         # a user typing "EC*" would build ".*EC*.*" and match any string
         # containing "E" (since C* means zero-or-more C in regex).
-        text = re.escape(text).replace(r'\*', '.*').replace(r'\?', '.')
+        return re.escape(text).replace(r'\*', '.*').replace(r'\?', '.')
+
+    def _build_pattern(self, text: str) -> str:
+        text = self._glob_to_regex(text)
 
         type_search = self.type_search.currentText()
         if type_search == 'startsWith':
@@ -191,11 +195,21 @@ class VariableBrowser(QWidget):
         """Filter the HMI variable list locally: unlike the server search, the
         pattern is also matched against the description and the unit."""
         hmi_vars = self.get_hmi_vars()
-        pattern = re.compile(self._build_pattern(text), re.IGNORECASE)
-        found = {name: meta for name, meta in hmi_vars.items()
-                 if pattern.fullmatch(name)
-                 or pattern.fullmatch(meta.get('description', ''))
-                 or pattern.fullmatch(meta.get('units', ''))}
+        unit = re.fullmatch(r'\[(.+)\]', text.strip())
+        if unit:
+            # "[K]" is the unit as shown in the leaf label and means "every
+            # variable measured in K", so the brackets direct the search to
+            # the unit field alone and the match is exact unless the user
+            # adds wildcards: a "contains" match would also pull in kA or kV.
+            pattern = re.compile(self._glob_to_regex(unit.group(1)), re.IGNORECASE)
+            found = {name: meta for name, meta in hmi_vars.items()
+                     if pattern.fullmatch(meta.get('units', ''))}
+        else:
+            pattern = re.compile(self._build_pattern(text), re.IGNORECASE)
+            found = {name: meta for name, meta in hmi_vars.items()
+                     if pattern.fullmatch(name)
+                     or pattern.fullmatch(meta.get('description', ''))
+                     or pattern.fullmatch(meta.get('units', ''))}
 
         self.tree.set_model('SEARCH')
         self.tree.models['SEARCH'].data_source = self.get_current_source()

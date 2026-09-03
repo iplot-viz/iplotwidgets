@@ -26,7 +26,7 @@ class VariableTree(QTreeView):
         # Double-click expands the whole branch instead of toggling one
         # level, so search results do not have to be unfolded by hand.
         self.setExpandsOnDoubleClick(False)
-        self.doubleClicked.connect(self.expand_branch)
+        self.doubleClicked.connect(self.toggle_branch)
         self.load_model(AppDataAccess.da.default_ds)
         self.dragged_item = None
 
@@ -45,6 +45,13 @@ class VariableTree(QTreeView):
     def expand(self, index):
         self.get_model().expand(index.internalPointer())
         self.get_model().layoutChanged.emit()
+
+    def toggle_branch(self, index):
+        """Collapse an expanded node, otherwise expand its whole branch."""
+        if index.isValid() and self.isExpanded(index):
+            self.collapse(index)
+        else:
+            self.expand_branch(index)
 
     def expand_branch(self, index):
         """Expand a node and every descendant.

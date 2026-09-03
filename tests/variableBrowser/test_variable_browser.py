@@ -200,6 +200,8 @@ class AddToTableTest:
 HMI_VARS = {
     'VAR-A:FT01': {'description': 'Coolant flow', 'units': 'm3/s', 'type': 'float'},
     'VAR-B:TT01': {'description': 'Magnet temperature', 'units': 'K', 'type': 'float'},
+    'VAR-C:CT01': {'description': 'Coil current', 'units': 'kA', 'type': 'float'},
+    'VAR-K:PT01': {'description': 'Tank pressure', 'units': 'bar', 'type': 'float'},
 }
 
 
@@ -272,6 +274,28 @@ class HmiVariablesTest:
         search_model = hmi_browser.tree.models['SEARCH']
         assert [item.key for item in search_model.root_item.children] == ['VAR-A:FT01']
 
+    def test_bracketed_search_selects_by_unit_only(self, hmi_browser):
+        # "[K]" means every variable measured in kelvin: neither the K in the
+        # name of VAR-K nor the k of the kA unit may answer, whatever the
+        # match mode says.
+        hmi_browser.hmi_check.setChecked(True)
+        hmi_browser.searchbar.setText('[K]')
+        hmi_browser.type_search.setCurrentText('contains')
+        hmi_browser.search()
+
+        search_model = hmi_browser.tree.models['SEARCH']
+        assert [item.key for item in search_model.root_item.children] == ['VAR-B:TT01']
+
+    def test_bracketed_search_accepts_wildcards(self, hmi_browser):
+        hmi_browser.hmi_check.setChecked(True)
+        hmi_browser.searchbar.setText('[k*]')
+        hmi_browser.type_search.setCurrentText('startsWith')
+        hmi_browser.search()
+
+        search_model = hmi_browser.tree.models['SEARCH']
+        assert ([item.key for item in search_model.root_item.children]
+                == ['VAR-B:TT01', 'VAR-C:CT01'])
+
     def test_uncheck_returns_to_source_model(self, hmi_browser, mock_data_source):
         hmi_browser.hmi_check.setChecked(True)
         hmi_browser.hmi_check.setChecked(False)
@@ -334,6 +358,29 @@ class HmiVariablesTest:
         nested = model.index(0, 0, top)
         assert not tree.isExpanded(top) and not tree.isExpanded(nested)
         tree.expand_branch(top)
+        assert tree.isExpanded(top) and tree.isExpanded(nested)
+
+    def test_double_click_on_an_expanded_node_collapses_it(self, hmi_browser,
+                                                            mock_data_source):
+        def parse(names):
+            document = {}
+            for name in names:
+                head, tail = name.split('-', 1)
+                document.setdefault(head, {}).setdefault(tail.split(':')[0], {})[name] = ''
+            return document
+
+        mock_data_source.parse_search_to_dict = parse
+        hmi_browser.hmi_check.setChecked(True)
+        tree = hmi_browser.tree
+        top = tree.model().index(0, 0)
+        nested = tree.model().index(0, 0, top)
+
+        # Driven through the signal so the slot wiring is covered too.
+        tree.doubleClicked.emit(top)
+        assert tree.isExpanded(top) and tree.isExpanded(nested)
+        tree.doubleClicked.emit(top)
+        assert not tree.isExpanded(top)
+        tree.doubleClicked.emit(top)
         assert tree.isExpanded(top) and tree.isExpanded(nested)
 
     def test_search_result_double_click_expands_the_whole_branch(self, fast_browser,
