@@ -121,7 +121,9 @@ class PulseBrowserSearchExtendedTest:
 class PulseBrowserSelectedPulsesTest:
     """``set_selected_pulses`` is how MINT tells the browser which pulses
     are already in use. The flag must reach the model on screen, the
-    search results and any model created afterwards."""
+    search results and any model created afterwards. With
+    ``set_selected_pulses_provider`` the browser asks instead: whenever it
+    is shown and on ``refresh_selected_pulses``."""
 
     def _df(self, *pulses):
         import pandas as pd
@@ -153,6 +155,43 @@ class PulseBrowserSelectedPulsesTest:
         fast_pulse_browser.table.load_model(source)
         model = fast_pulse_browser.table.models['later']
         assert list(model.dataframe['Selected']) == [False, True]
+
+    def test_provider_is_asked_when_the_browser_is_shown(self, fast_pulse_browser, mock_data_source):
+        mock_data_source.get_pulses_df = lambda **kw: self._df('D/1', 'D/2')
+        fast_pulse_browser.refresh()
+        in_use = ['D/1']
+        fast_pulse_browser.set_selected_pulses_provider(lambda: list(in_use))
+        model = fast_pulse_browser.table.get_current_model()
+        assert list(model.dataframe['Selected']) == [True, False]
+        in_use[:] = ['D/2']
+        fast_pulse_browser.show()
+        try:
+            assert list(model.dataframe['Selected']) == [False, True]
+        finally:
+            fast_pulse_browser.hide()
+
+    def test_refresh_selected_pulses_pulls_from_the_provider(self, fast_pulse_browser, mock_data_source):
+        mock_data_source.get_pulses_df = lambda **kw: self._df('E/1', 'E/2')
+        fast_pulse_browser.refresh()
+        in_use = []
+        fast_pulse_browser.set_selected_pulses_provider(lambda: list(in_use))
+        model = fast_pulse_browser.table.get_current_model()
+        assert list(model.dataframe['Selected']) == [False, False]
+        in_use.append('E/2')
+        fast_pulse_browser.refresh_selected_pulses()
+        assert list(model.dataframe['Selected']) == [False, True]
+
+    def test_without_a_provider_the_explicit_selection_survives_show(self, fast_pulse_browser, mock_data_source):
+        mock_data_source.get_pulses_df = lambda **kw: self._df('F/1', 'F/2')
+        fast_pulse_browser.refresh()
+        fast_pulse_browser.set_selected_pulses(['F/1'])
+        fast_pulse_browser.refresh_selected_pulses()
+        fast_pulse_browser.show()
+        try:
+            model = fast_pulse_browser.table.get_current_model()
+            assert list(model.dataframe['Selected']) == [True, False]
+        finally:
+            fast_pulse_browser.hide()
 
 
 class PulseBrowserPaginationButtonsTest:

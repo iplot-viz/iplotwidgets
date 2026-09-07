@@ -46,6 +46,7 @@ class PulseBrowser(QWidget):
             )
             self.setWindowTitle("Pulse search")
             self.flag = ""
+            self._selected_pulses_provider = None
             self._single_selection_mode = False
             self._require_timestamps = False
             self.table = PulseTable()
@@ -204,6 +205,24 @@ class PulseBrowser(QWidget):
         """Mark the pulses the caller is already using, so the table can
         highlight them and sort them to the top."""
         self.table.set_selected_pulses(pulses)
+
+    def set_selected_pulses_provider(self, provider):
+        """Register a callable returning the pulses currently in use.
+
+        The browser is a singleton opened from several places, so rather
+        than each opener pushing its own view it asks the provider every
+        time it is shown and whenever ``refresh_selected_pulses`` is called.
+        """
+        self._selected_pulses_provider = provider
+        self.refresh_selected_pulses()
+
+    def refresh_selected_pulses(self):
+        if self._selected_pulses_provider is not None:
+            self.set_selected_pulses(self._selected_pulses_provider())
+
+    def showEvent(self, event):
+        self.refresh_selected_pulses()
+        super().showEvent(event)
 
     def set_update_mode(self, enabled: bool):
         # Only one action button is visible at a time. Callers must set
