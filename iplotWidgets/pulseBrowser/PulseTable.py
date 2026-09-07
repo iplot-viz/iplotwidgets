@@ -57,6 +57,7 @@ class PulseTable(QTableView):
 
         self.models = {'SEARCH': PulseTableModel(data_source=AppDataAccess.da.default_ds)}
         self.current_model_name = ''
+        self.selected_pulses = set()
 
         self._link_delegate = _LinkDelegate(self)
 
@@ -109,11 +110,19 @@ class PulseTable(QTableView):
             if not self.isColumnHidden(column):
                 self.resizeColumnToContents(column)
 
+    def set_selected_pulses(self, pulses):
+        """Flag these pulses in every model, current and future."""
+        self.selected_pulses = set(pulses)
+        for model in self.models.values():
+            model.set_selected_pulses(self.selected_pulses)
+
     def load_model(self, data_source):
         ds_name = data_source.name
         if ds_name not in self.models:
-            self.models[ds_name] = PulseTableModel(data_source=data_source)
-            self.models[ds_name].load()
+            model = PulseTableModel(data_source=data_source)
+            model.set_selected_pulses(self.selected_pulses)
+            model.load()
+            self.models[ds_name] = model
 
         self.current_model_name = ds_name
         self.setModel(self.models[ds_name])

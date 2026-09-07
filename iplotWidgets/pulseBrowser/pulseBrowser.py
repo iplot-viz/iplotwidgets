@@ -200,6 +200,11 @@ class PulseBrowser(QWidget):
         self.update_finish.emit(pulse)
         self.table.clearSelection()
 
+    def set_selected_pulses(self, pulses):
+        """Mark the pulses the caller is already using, so the table can
+        highlight them and sort them to the top."""
+        self.table.set_selected_pulses(pulses)
+
     def set_update_mode(self, enabled: bool):
         # Only one action button is visible at a time. Callers must set
         # the desired mode before showing the singleton browser.

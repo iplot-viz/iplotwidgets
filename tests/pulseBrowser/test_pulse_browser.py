@@ -118,6 +118,43 @@ class PulseBrowserSearchExtendedTest:
         assert fast_pulse_browser.table.models['SEARCH'].rowCount() > 0
 
 
+class PulseBrowserSelectedPulsesTest:
+    """``set_selected_pulses`` is how MINT tells the browser which pulses
+    are already in use. The flag must reach the model on screen, the
+    search results and any model created afterwards."""
+
+    def _df(self, *pulses):
+        import pandas as pd
+        return pd.DataFrame({
+            'Pulse': list(pulses),
+            'Time From': pd.to_datetime(['2026-04-01'] * len(pulses)),
+        })
+
+    def test_selection_reaches_the_current_model(self, fast_pulse_browser, mock_data_source):
+        mock_data_source.get_pulses_df = lambda **kw: self._df('A/1', 'A/2')
+        fast_pulse_browser.refresh()
+        fast_pulse_browser.set_selected_pulses(['A/2'])
+        model = fast_pulse_browser.table.get_current_model()
+        assert list(model.dataframe['Selected']) == [False, True]
+
+    def test_selection_reaches_search_results(self, fast_pulse_browser, mock_data_source):
+        fast_pulse_browser.set_selected_pulses(['B/1'])
+        mock_data_source.search_pulses_df = lambda text: self._df('B/1', 'B/2')
+        fast_pulse_browser.searchbar.setText('B')
+        fast_pulse_browser.search()
+        model = fast_pulse_browser.table.models['SEARCH']
+        assert list(model.dataframe['Selected']) == [True, False]
+
+    def test_selection_reaches_models_created_later(self, fast_pulse_browser):
+        from types import SimpleNamespace
+        fast_pulse_browser.set_selected_pulses(['C/2'])
+        source = SimpleNamespace(name='later', source_type='csv',
+                                 get_pulses_df=lambda: self._df('C/1', 'C/2'))
+        fast_pulse_browser.table.load_model(source)
+        model = fast_pulse_browser.table.models['later']
+        assert list(model.dataframe['Selected']) == [False, True]
+
+
 class PulseBrowserPaginationButtonsTest:
     def test_previous_pulses_at_first_page_is_safe(self, fast_pulse_browser):
         # No exception even though there's no model data loaded.
@@ -134,4 +171,5 @@ TestPulseBrowserSearch = PulseBrowserSearchTest
 TestPulseBrowserPagination = PulseBrowserPaginationTest
 TestPulseBrowserRefresh = PulseBrowserRefreshTest
 TestPulseBrowserSearchExtended = PulseBrowserSearchExtendedTest
+TestPulseBrowserSelectedPulses = PulseBrowserSelectedPulsesTest
 TestPulseBrowserPaginationButtons = PulseBrowserPaginationButtonsTest
