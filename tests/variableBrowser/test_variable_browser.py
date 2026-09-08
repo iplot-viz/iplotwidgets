@@ -197,9 +197,230 @@ class AddToTableTest:
         assert fast_browser.tableView.model.rowCount() == 0
 
 
+HMI_VARS = {
+    'VAR-A:FT01': {'description': 'Coolant flow', 'units': 'm3/s', 'type': 'float'},
+    'VAR-B:TT01': {'description': 'Magnet temperature', 'units': 'K', 'type': 'float'},
+    'VAR-C:CT01': {'description': 'Coil current', 'units': 'kA', 'type': 'float'},
+    'VAR-K:PT01': {'description': 'Tank pressure', 'units': 'bar', 'type': 'float'},
+}
+
+
+@pytest.fixture
+def hmi_browser(qapp, app_data_access, mock_data_source, monkeypatch):
+    """A VariableBrowser whose data source has a controls metadata server."""
+    import iplotWidgets.variableBrowser.variableBrowser as vb_module
+    monkeypatch.setattr(vb_module.time, 'sleep', lambda *a, **k: None)
+    mock_data_source.controls_metadata = 'http://meta-host:3000'
+    mock_data_source.get_hmi_var_dict = lambda refresh=False: dict(HMI_VARS)
+    browser = VariableBrowser()
+    yield browser
+    browser.deleteLater()
+
+
+class HmiVariablesTest:
+    """The 'Synoptic variables' check box drives the controls metadata
+    (HMI) mode: it only appears for sources with a controlsmetadata
+    server, replaces the tree with the REST-provided variable list, and
+    switches the search to a local one that also matches description
+    and unit. None of it may fire per-variable server lookups."""
+
+    def test_checkbox_hidden_without_metadata_server(self, fast_browser):
+        assert fast_browser.hmi_check.isHidden()
+
+    def test_checkbox_shown_with_metadata_server(self, hmi_browser):
+        assert not hmi_browser.hmi_check.isHidden()
+
+    def test_toggle_loads_hmi_model_with_metadata(self, hmi_browser, mock_data_source):
+        lookups = []
+        mock_data_source.get_var_fields = lambda variable: lookups.append(variable)
+        hmi_browser.hmi_check.setChecked(True)
+
+        model = hmi_browser.tree.model()
+        assert model is hmi_browser.tree.models[f'{mock_data_source.name}:HMI']
+        leaves = {item.key: item for item in model.root_item.children}
+        assert set(leaves) == set(HMI_VARS)
+        assert leaves['VAR-A:FT01'].unit == 'm3/s'
+        assert leaves['VAR-A:FT01'].description == 'Coolant flow'
+        assert leaves['VAR-A:FT01'].data_type == 'float'
+        assert lookups == []
+
+    def test_hmi_search_matches_description(self, hmi_browser, mock_data_source):
+        queries = []
+        mock_data_source.get_var_dict = lambda **kw: queries.append(kw) or {}
+        hmi_browser.hmi_check.setChecked(True)
+        hmi_browser.searchbar.setText('temperature')
+        hmi_browser.type_search.setCurrentText('contains')
+        hmi_browser.search()
+
+        search_model = hmi_browser.tree.models['SEARCH']
+        assert [item.key for item in search_model.root_item.children] == ['VAR-B:TT01']
+        assert queries == []
+
+    def test_hmi_search_matches_unit(self, hmi_browser):
+        hmi_browser.hmi_check.setChecked(True)
+        hmi_browser.searchbar.setText('m3')
+        hmi_browser.type_search.setCurrentText('contains')
+        hmi_browser.search()
+
+        search_model = hmi_browser.tree.models['SEARCH']
+        assert [item.key for item in search_model.root_item.children] == ['VAR-A:FT01']
+
+    def test_hmi_search_still_matches_the_name(self, hmi_browser):
+        hmi_browser.hmi_check.setChecked(True)
+        hmi_browser.searchbar.setText('VAR-A*')
+        hmi_browser.type_search.setCurrentText('contains')
+        hmi_browser.search()
+
+        search_model = hmi_browser.tree.models['SEARCH']
+        assert [item.key for item in search_model.root_item.children] == ['VAR-A:FT01']
+
+    def test_bracketed_search_selects_by_unit_only(self, hmi_browser):
+        # "[K]" means every variable measured in kelvin: neither the K in the
+        # name of VAR-K nor the k of the kA unit may answer, whatever the
+        # match mode says.
+        hmi_browser.hmi_check.setChecked(True)
+        hmi_browser.searchbar.setText('[K]')
+        hmi_browser.type_search.setCurrentText('contains')
+        hmi_browser.search()
+
+        search_model = hmi_browser.tree.models['SEARCH']
+        assert [item.key for item in search_model.root_item.children] == ['VAR-B:TT01']
+
+    def test_bracketed_search_accepts_wildcards(self, hmi_browser):
+        hmi_browser.hmi_check.setChecked(True)
+        hmi_browser.searchbar.setText('[k*]')
+        hmi_browser.type_search.setCurrentText('startsWith')
+        hmi_browser.search()
+
+        search_model = hmi_browser.tree.models['SEARCH']
+        assert ([item.key for item in search_model.root_item.children]
+                == ['VAR-B:TT01', 'VAR-C:CT01'])
+
+    def test_uncheck_returns_to_source_model(self, hmi_browser, mock_data_source):
+        hmi_browser.hmi_check.setChecked(True)
+        hmi_browser.hmi_check.setChecked(False)
+        assert hmi_browser.tree.model() is hmi_browser.tree.models[mock_data_source.name]
+
+    def test_refresh_in_hmi_mode_refetches_the_list(self, hmi_browser, mock_data_source):
+        calls = []
+
+        def get_hmi_var_dict(refresh=False):
+            calls.append(refresh)
+            return dict(HMI_VARS)
+
+        mock_data_source.get_hmi_var_dict = get_hmi_var_dict
+        hmi_browser.hmi_check.setChecked(True)
+        hmi_browser.refresh()
+        assert calls == [False, True]
+
+    def test_short_text_reverts_to_hmi_model(self, hmi_browser, mock_data_source):
+        hmi_browser.hmi_check.setChecked(True)
+        hmi_browser.tree.set_model('SEARCH')
+        hmi_browser.searchbar.setText('ab')
+        hmi_browser.update_display()
+        assert hmi_browser.tree.model() is hmi_browser.tree.models[f'{mock_data_source.name}:HMI']
+
+    def test_synoptic_leaf_label_carries_unit_type_and_description(self, hmi_browser):
+        # Label contract: unit between square brackets, description after
+        # the data type, all in the label itself.
+        hmi_browser.hmi_check.setChecked(True)
+        leaves = {item.key: item for item in hmi_browser.tree.model().root_item.children}
+        assert leaves['VAR-A:FT01'].synoptic
+        assert (leaves['VAR-A:FT01'].get_tree_variable_str()
+                == 'VAR-A:FT01 [m3/s] float Coolant flow')
+
+    def test_synoptic_leaf_shows_no_tooltip(self, hmi_browser, monkeypatch):
+        # The label already carries the metadata; a tooltip would repeat it.
+        import iplotWidgets.variableBrowser.variableTree as vt_module
+        shown = []
+        monkeypatch.setattr(vt_module.QToolTip, 'showText',
+                            lambda *a, **k: shown.append(a))
+        hmi_browser.hmi_check.setChecked(True)
+        leaf_index = hmi_browser.tree.model().index(0, 0)
+        hmi_browser.tree.handle_item_entered(leaf_index)
+        assert shown == []
+
+    def test_double_click_handler_expands_the_whole_branch(self, hmi_browser,
+                                                           mock_data_source):
+        def parse(names):
+            document = {}
+            for name in names:
+                head, tail = name.split('-', 1)
+                document.setdefault(head, {}).setdefault(tail.split(':')[0], {})[name] = ''
+            return document
+
+        mock_data_source.parse_search_to_dict = parse
+        hmi_browser.hmi_check.setChecked(True)
+        tree = hmi_browser.tree
+        model = tree.model()
+
+        top = model.index(0, 0)
+        nested = model.index(0, 0, top)
+        assert not tree.isExpanded(top) and not tree.isExpanded(nested)
+        tree.expand_branch(top)
+        assert tree.isExpanded(top) and tree.isExpanded(nested)
+
+    def test_double_click_on_an_expanded_node_collapses_it(self, hmi_browser,
+                                                            mock_data_source):
+        def parse(names):
+            document = {}
+            for name in names:
+                head, tail = name.split('-', 1)
+                document.setdefault(head, {}).setdefault(tail.split(':')[0], {})[name] = ''
+            return document
+
+        mock_data_source.parse_search_to_dict = parse
+        hmi_browser.hmi_check.setChecked(True)
+        tree = hmi_browser.tree
+        top = tree.model().index(0, 0)
+        nested = tree.model().index(0, 0, top)
+
+        # Driven through the signal so the slot wiring is covered too.
+        tree.doubleClicked.emit(top)
+        assert tree.isExpanded(top) and tree.isExpanded(nested)
+        tree.doubleClicked.emit(top)
+        assert not tree.isExpanded(top)
+        tree.doubleClicked.emit(top)
+        assert tree.isExpanded(top) and tree.isExpanded(nested)
+
+    def test_search_result_double_click_expands_the_whole_branch(self, fast_browser,
+                                                                 mock_data_source):
+        mock_data_source.source_type = DS_CODAC_TYPE
+        search_model = fast_browser.tree.models['SEARCH']
+        search_model.data_source = mock_data_source
+        search_model.load_document({'TOP': {'MID': {'LEAF': ''}}})
+        fast_browser.tree.set_model('SEARCH')
+
+        tree = fast_browser.tree
+        model = tree.model()
+        top = model.index(0, 0)
+        nested = model.index(0, 0, top)
+        tree.expand_branch(top)
+        assert tree.isExpanded(top) and tree.isExpanded(nested)
+
+    def test_lazy_codac_tree_double_click_expands_one_level_only(self, fast_browser,
+                                                                 mock_data_source):
+        # Recursing the lazily loaded tree would fire one blocking server
+        # query per level and per child; a double-click there opens a
+        # single level.
+        mock_data_source.source_type = DS_CODAC_TYPE
+        model = fast_browser.tree.models[mock_data_source.name]
+        model.load_document({'TOP': {'MID': {'LEAF': ''}}})
+        fast_browser.tree.set_model(mock_data_source.name)
+
+        tree = fast_browser.tree
+        model = tree.model()
+        top = model.index(0, 0)
+        nested = model.index(0, 0, top)
+        tree.expand_branch(top)
+        assert tree.isExpanded(top)
+        assert not tree.isExpanded(nested)
+
+
 # Expose pytest classes so collection picks them up.
 TestVariableBrowserConstruction = VariableBrowserConstructionTest
 TestSearchFlow = SearchFlowTest
 TestUpdateDisplay = UpdateDisplayTest
 TestRefreshFlow = RefreshFlowTest
 TestAddToTable = AddToTableTest
+TestHmiVariables = HmiVariablesTest
