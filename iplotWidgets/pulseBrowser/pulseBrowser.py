@@ -8,6 +8,7 @@ from PySide6.QtCore import Qt, Signal
 
 from iplotDataAccess.dataAccess import DataSource
 from iplotWidgets.pulseBrowser.PulseTable import PulseTable
+from iplotWidgets.sizing import clamp_to_screen
 from iplotLogging import setupLogger as setupLog
 from iplotDataAccess.appDataAccess import AppDataAccess
 from iplotDataAccess.dataSource import DS_IMASPY_TYPE
@@ -32,21 +33,14 @@ class PulseBrowser(QWidget):
             self._initialized = True
             super().__init__(*args, **kwargs)
 
-            # self.width / self.height used to be assigned here, shadowing
-            # QWidget.width() and QWidget.height() with ints: any later call
-            # would have raised "'int' object is not callable". They were also
-            # unused -- the geometry comes from resize() below, which is now
-            # clamped so the window cannot land partly off a smaller screen.
-            _available = QGuiApplication.primaryScreen().availableGeometry()
-            self.resize(min(1300, int(_available.width() * 0.9)),
-                        min(730, int(_available.height() * 0.9)))
+            clamp_to_screen(self, 1300, 730)
             self.setAcceptDrops(True)
             self.setGeometry(
                 QStyle.alignedRect(
                     Qt.LayoutDirection.LeftToRight,
                     Qt.AlignmentFlag.AlignCenter,
                     self.size(),
-                    _available,
+                    QGuiApplication.primaryScreen().availableGeometry(),
                 ),
             )
             self.setWindowTitle("Pulse search")

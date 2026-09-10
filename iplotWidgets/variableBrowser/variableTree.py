@@ -8,7 +8,7 @@ from iplotWidgets.variableBrowser.models.mtJsonModel import VariableModel
 
 
 class VariableTree(FontScaledView, QTreeView):
-    COLUMN_CHARS = {0: 26}
+    COLUMN_WIDTHS = {0: 205}
 
     def __init__(self):
         super().__init__()

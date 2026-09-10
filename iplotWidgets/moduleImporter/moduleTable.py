@@ -10,7 +10,7 @@ from iplotWidgets.sizing import FontScaledView
 
 
 class ModuleTable(FontScaledView, QTableView):
-    COLUMN_CHARS = {0: 14}
+    COLUMN_WIDTHS = {0: 100}
 
     def __init__(self):
         QTableView.__init__(self)

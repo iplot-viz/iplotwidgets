@@ -47,7 +47,7 @@ class _LinkDelegate(QStyledItemDelegate):
 
 
 class PulseTable(FontScaledView, QTableView):
-    COLUMN_CHARS = {0: 14}
+    COLUMN_WIDTHS = {0: 100}
 
     def __init__(self):
         QTableView.__init__(self)

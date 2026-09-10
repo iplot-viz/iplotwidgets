@@ -4,6 +4,8 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QWidget, QStyle, QPushButton, QComboBox, QPlainTextEdit, QVBoxLayout, QHBoxLayout, QLabel
 from PySide6.QtCore import Qt, QCoreApplication
 
+from iplotWidgets.sizing import clamp_to_screen
+
 
 class ConsoleWidget(QWidget):
 
@@ -11,14 +13,12 @@ class ConsoleWidget(QWidget):
         super().__init__(*args, **kwargs)
         self.log_handler = logging.Handler()
         self.log_handler.emit = self.log_emit
-        _available = QGuiApplication.primaryScreen().availableGeometry()
-        self.resize(min(1000, int(_available.width() * 0.9)),
-                    min(550, int(_available.height() * 0.9)))
+        clamp_to_screen(self, 1000, 550)
         self.setAcceptDrops(True)
         self.setGeometry(QStyle.alignedRect(Qt.LayoutDirection.LeftToRight,
                                             Qt.AlignmentFlag.AlignCenter,
                                             self.size(),
-                                            _available, ), )
+                                            QGuiApplication.primaryScreen().availableGeometry(), ), )
         self._pid = QCoreApplication.instance().applicationPid()
         self.setWindowTitle(f"MINT Console ({self._pid})")
         self.content = QPlainTextEdit()
@@ -29,7 +29,6 @@ class ConsoleWidget(QWidget):
                         background-color: #2b2b2b;          /* Dark background */
                         color: #FFFFFF;                     /* Light color for the text */
                         font-family: Consolas, monospace;   /* Monospaced font */
-                        font-size: 1em;                     /* Follows the app font */
                         padding: 0.65em;                    /* Spacing around text */
                     }
         """)

@@ -2,6 +2,7 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QHBoxLayout, QVBoxLayout, QMessageBox
 from PySide6.QtCore import Qt, Signal
 from iplotWidgets.moduleImporter.moduleTable import ModuleTable
+from iplotWidgets.sizing import clamp_to_screen
 from iplotProcessing.tools.parsers import Parser
 from typing import List
 
@@ -16,21 +17,14 @@ class ModuleImporter(QWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # self.width / self.height used to be assigned here, shadowing
-        # QWidget.width() and QWidget.height() with ints: any later call
-        # would have raised "'int' object is not callable". They were also
-        # unused -- the geometry comes from resize() below, which is now
-        # clamped so the window cannot land partly off a smaller screen.
-        _available = QGuiApplication.primaryScreen().availableGeometry()
-        self.resize(min(500, int(_available.width() * 0.9)),
-                    min(400, int(_available.height() * 0.9)))
+        clamp_to_screen(self, 500, 400)
         self.setAcceptDrops(True)
         self.setGeometry(
             QStyle.alignedRect(
                 Qt.LayoutDirection.LeftToRight,
                 Qt.AlignmentFlag.AlignCenter,
                 self.size(),
-                _available,
+                QGuiApplication.primaryScreen().availableGeometry(),
             ),
         )
         self.setWindowTitle("Load new modules")

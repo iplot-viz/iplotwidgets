@@ -1,10 +1,10 @@
 """
 Tests for iplotWidgets.sizing.
 
-The views in this package are sized in characters and font height rather than
-pixels so they track the application font, which is how MINT implements its UI
-scale. These tests use bare Qt views instead of the real tables so they do not
-need a data source.
+The views in this package keep their pixel sizes at the platform font and grow
+them with the application font, which is how MINT implements its UI scale.
+These tests use bare Qt views instead of the real tables so they do not need a
+data source.
 """
 
 import unittest
@@ -12,7 +12,7 @@ import unittest
 from PySide6.QtGui import QStandardItemModel
 from PySide6.QtWidgets import QApplication, QHeaderView, QTableView, QTreeView
 
-from iplotWidgets.sizing import FontScaledView, char_width, row_height
+from iplotWidgets.sizing import FontScaledView, clamp_to_screen, font_scale, row_height, scaled_px
 
 
 def ensure_qapp() -> QApplication:
@@ -20,7 +20,7 @@ def ensure_qapp() -> QApplication:
 
 
 class ScaledTable(FontScaledView, QTableView):
-    COLUMN_CHARS = {0: 14}
+    COLUMN_WIDTHS = {0: 100}
 
     def __init__(self):
         QTableView.__init__(self)
@@ -31,7 +31,7 @@ class ScaledTable(FontScaledView, QTableView):
 
 
 class ScaledTree(FontScaledView, QTreeView):
-    COLUMN_CHARS = {0: 26}
+    COLUMN_WIDTHS = {0: 205}
 
     def __init__(self):
         QTreeView.__init__(self)
@@ -56,15 +56,31 @@ class SizingTest(unittest.TestCase):
         font.setPointSizeF(font.pointSizeF() * factor)
         return font
 
-    def test_char_width_grows_with_the_font(self):
+    def test_sizes_are_the_pixel_literals_at_the_platform_font(self):
         table = ScaledTable()
-        small = char_width(table, 14)
+        self.assertAlmostEqual(font_scale(table), 1.0, places=6)
+        self.assertEqual(scaled_px(table, 100), 100)
+        self.assertEqual(table.columnWidth(0), 100)
+
+    def test_sizes_grow_with_the_font(self):
+        table = ScaledTable()
         table.setFont(self._bigger_font(table))
-        self.assertGreater(char_width(table, 14), small)
+        self.assertGreater(font_scale(table), 1.5)
+        self.assertGreater(scaled_px(table, 100), 150)
 
     def test_row_height_leaves_room_for_the_text(self):
         table = ScaledTable()
         self.assertGreater(row_height(table), table.fontMetrics().height())
+
+    def test_rows_keep_the_style_default_until_the_font_outgrows_it(self):
+        # At the default font the rows must look exactly as they always did.
+        plain = QTableView()
+        style_default = plain.verticalHeader().defaultSectionSize()
+        table = ScaledTable()
+        self.assertEqual(table.verticalHeader().defaultSectionSize(), max(style_default, row_height(table)))
+        table.setFont(self._bigger_font(table, factor=3.0))
+        self.app.processEvents()
+        self.assertGreater(table.verticalHeader().defaultSectionSize(), style_default)
 
     def test_fixed_rows_still_fit_a_larger_font(self):
         # The regression this guards: a Fixed vertical header keeps whatever
@@ -96,22 +112,25 @@ class SizingTest(unittest.TestCase):
         tree.apply_font_metrics()
         self.assertGreater(tree.columnWidth(0), 0)
 
-    def test_char_width_survives_a_zero_average_width(self):
-        class OddMetrics:
-            def averageCharWidth(self):
-                return 0
 
-            def horizontalAdvance(self, _text):
-                return 0
 
-            def height(self):
-                return 10
+class ClampToScreenTest(unittest.TestCase):
 
-        class Widget:
-            def fontMetrics(self):
-                return OddMetrics()
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = ensure_qapp()
 
-        self.assertEqual(char_width(Widget(), 10), 80)
+    def test_a_fitting_size_is_kept(self):
+        widget = QTableView()
+        clamp_to_screen(widget, 300, 200)
+        self.assertEqual((widget.width(), widget.height()), (300, 200))
+
+    def test_an_oversized_window_is_cut_to_its_screen(self):
+        widget = QTableView()
+        available = widget.screen().availableGeometry()
+        clamp_to_screen(widget, available.width() * 4, available.height() * 4)
+        self.assertLessEqual(widget.width(), available.width() * 0.9)
+        self.assertLessEqual(widget.height(), available.height() * 0.9)
 
 
 if __name__ == '__main__':
