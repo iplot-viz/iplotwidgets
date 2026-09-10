@@ -11,12 +11,14 @@ class ConsoleWidget(QWidget):
         super().__init__(*args, **kwargs)
         self.log_handler = logging.Handler()
         self.log_handler.emit = self.log_emit
-        self.resize(1000, 550)
+        _available = QGuiApplication.primaryScreen().availableGeometry()
+        self.resize(min(1000, int(_available.width() * 0.9)),
+                    min(550, int(_available.height() * 0.9)))
         self.setAcceptDrops(True)
         self.setGeometry(QStyle.alignedRect(Qt.LayoutDirection.LeftToRight,
                                             Qt.AlignmentFlag.AlignCenter,
                                             self.size(),
-                                            QGuiApplication.primaryScreen().availableGeometry(), ), )
+                                            _available, ), )
         self._pid = QCoreApplication.instance().applicationPid()
         self.setWindowTitle(f"MINT Console ({self._pid})")
         self.content = QPlainTextEdit()
@@ -27,8 +29,8 @@ class ConsoleWidget(QWidget):
                         background-color: #2b2b2b;          /* Dark background */
                         color: #FFFFFF;                     /* Light color for the text */
                         font-family: Consolas, monospace;   /* Monospaced font */
-                        font-size: 12px;                    /* Font size */
-                        padding: 8px;                       /* Spacing around text */
+                        font-size: 1em;                     /* Follows the app font */
+                        padding: 0.65em;                    /* Spacing around text */
                     }
         """)
         self.clear_button = QPushButton("Clear console")
