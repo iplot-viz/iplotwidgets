@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
 from iplotDataAccess.appDataAccess import AppDataAccess
 from iplotDataAccess.dataSource import DS_IMASPY_TYPE
 from iplotWidgets.pulseBrowser.models.PulseTableModel import PulseTableModel
+from iplotWidgets.sizing import FontScaledView
 
 _LINK_COLOR = QColor(30, 100, 200)
 _DASHBOARD_LINK_COL = "dashboard_link"
@@ -45,7 +46,9 @@ class _LinkDelegate(QStyledItemDelegate):
         painter.restore()
 
 
-class PulseTable(QTableView):
+class PulseTable(FontScaledView, QTableView):
+    COLUMN_CHARS = {0: 14}
+
     def __init__(self):
         QTableView.__init__(self)
         self.setSelectionMode(self.selectionMode().ExtendedSelection)
@@ -53,7 +56,7 @@ class PulseTable(QTableView):
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.horizontalHeader().setStretchLastSection(True)
         self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.setColumnWidth(0, 100)
+        self.apply_font_metrics()
 
         self.models = {'SEARCH': PulseTableModel(data_source=AppDataAccess.da.default_ds)}
         self.current_model_name = ''

@@ -5,6 +5,8 @@ from PySide6.QtWidgets import QTableView, QAbstractItemView, QHeaderView
 from PySide6.QtCore import Qt
 from typing import *
 
+from iplotWidgets.sizing import FontScaledView
+
 
 class TableModel(QAbstractTableModel):
     layoutChanged = Signal()
@@ -56,7 +58,9 @@ class TableModel(QAbstractTableModel):
         return self.dataframe.values.tolist()
 
 
-class VariableTable(QTableView):
+class VariableTable(FontScaledView, QTableView):
+    COLUMN_CHARS = {0: 14}
+
     def __init__(self):
         QTableView.__init__(self)
         self.setSelectionMode(self.selectionMode().ExtendedSelection)
@@ -64,11 +68,9 @@ class VariableTable(QTableView):
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.horizontalHeader().setStretchLastSection(True)
         self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.setColumnWidth(0, 100)
         self.model = TableModel()
         self.setModel(self.model)
-
-        print()
+        self.apply_font_metrics()
 
     def remove_from_table(self):
         index = self.selectedIndexes()
