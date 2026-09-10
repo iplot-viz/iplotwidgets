@@ -108,6 +108,42 @@ class PaginationTest(unittest.TestCase):
         self.assertEqual(empty.get_total_pages(), 0)
         self.assertEqual(empty.get_real_page(), 0)
 
+    def test_go_to_page_is_one_indexed(self):
+        self.model.go_to_page(3)
+        self.assertEqual(self.model.get_real_page(), 3)
+        self.assertEqual(self.model.rowCount(), 10)
+
+    def test_go_to_page_ignores_targets_out_of_range(self):
+        self.model.go_to_page(2)
+        for target in (0, 4, -1):
+            self.model.go_to_page(target)
+            self.assertEqual(self.model.get_real_page(), 2)
+
+
+class PageLinksTest(unittest.TestCase):
+    """The links shown between the arrows: first and last page plus two
+    on each side of the current one, ``None`` where pages are skipped."""
+
+    def test_window_in_the_middle_of_a_long_list(self):
+        self.assertEqual(PulseTableModel.page_links(5, 100), [1, None, 3, 4, 5, 6, 7, None, 100])
+
+    def test_window_touching_the_first_page_has_no_gap(self):
+        self.assertEqual(PulseTableModel.page_links(1, 100), [1, 2, 3, None, 100])
+        self.assertEqual(PulseTableModel.page_links(3, 100), [1, 2, 3, 4, 5, None, 100])
+
+    def test_window_touching_the_last_page_has_no_gap(self):
+        self.assertEqual(PulseTableModel.page_links(100, 100), [1, None, 98, 99, 100])
+
+    def test_adjacent_pages_are_not_replaced_by_a_gap(self):
+        self.assertEqual(PulseTableModel.page_links(4, 100), [1, 2, 3, 4, 5, 6, None, 100])
+
+    def test_short_lists_link_every_page(self):
+        self.assertEqual(PulseTableModel.page_links(2, 3), [1, 2, 3])
+        self.assertEqual(PulseTableModel.page_links(1, 1), [1])
+
+    def test_no_pages_no_links(self):
+        self.assertEqual(PulseTableModel.page_links(0, 0), [])
+
 
 class DataFormattingTest(unittest.TestCase):
     """The ``data`` override wraps pandas types in human-readable strings:

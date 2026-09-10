@@ -153,6 +153,30 @@ class PulseTableModel(QAbstractTableModel):
             self._current_page -= 1
             self.layoutChanged.emit()
 
+    def go_to_page(self, page: int) -> None:
+        """Jump to the 1-indexed ``page``; out-of-range targets are ignored."""
+        if 1 <= page <= self.get_total_pages() and page - 1 != self._current_page:
+            self._current_page = page - 1
+            self.layoutChanged.emit()
+
+    @staticmethod
+    def page_links(current: int, total: int) -> list:
+        """Pages worth a direct link around the 1-indexed ``current`` one.
+
+        The first and last pages plus a window of two on each side of the
+        current one, in order, with ``None`` standing for the pages skipped
+        between them: ``[1, None, 3, 4, 5, 6, 7, None, 100]``.
+        """
+        if total < 1:
+            return []
+        wanted = {1, total} | {p for p in range(current - 2, current + 3) if 1 <= p <= total}
+        links = []
+        for page in sorted(wanted):
+            if links and page != links[-1] + 1:
+                links.append(None)
+            links.append(page)
+        return links
+
     def get_total_pages(self) -> int:
         rows = self.dataframe.shape[0]
         return math.ceil(rows / self._page_size)
