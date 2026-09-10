@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox
 from PySide6.QtCore import Qt, Signal
 
 from iplotDataAccess.dataSource import DataSource, DS_CODAC_TYPE
+from iplotWidgets.sizing import char_width
 from iplotWidgets.variableBrowser.variableTree import VariableTree
 from iplotWidgets.variableBrowser.variableTable import VariableTable
 from iplotLogging import setupLogger as setupLog
@@ -22,16 +23,21 @@ class VariableBrowser(QWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.resize(1000, 800)
-        self.width = 840
-        self.height = 680
+        # self.width / self.height used to be assigned here, shadowing
+        # QWidget.width() and QWidget.height() with ints: any later call would
+        # have raised "'int' object is not callable". They were also unused --
+        # the geometry comes from resize() below, now clamped so the window
+        # cannot land partly off a smaller screen.
+        _available = QGuiApplication.primaryScreen().availableGeometry()
+        self.resize(min(1000, int(_available.width() * 0.9)),
+                    min(800, int(_available.height() * 0.9)))
         self.setAcceptDrops(True)
         self.setGeometry(
             QStyle.alignedRect(
                 Qt.LayoutDirection.LeftToRight,
                 Qt.AlignmentFlag.AlignCenter,
                 self.size(),
-                QGuiApplication.primaryScreen().availableGeometry(),
+                _available,
             ),
         )
 
@@ -97,7 +103,7 @@ class VariableBrowser(QWidget):
         tree_buttons_layout.addWidget(self.main_finish_btn)
         tree_layout.addLayout(tree_buttons_layout)
         tree_container.setLayout(tree_layout)
-        tree_container.setMinimumWidth(300)
+        tree_container.setMinimumWidth(char_width(self, 38))
         table_container = QWidget()
         table_layout = QVBoxLayout()
         table_layout.addWidget(self.tableView)
@@ -106,7 +112,7 @@ class VariableBrowser(QWidget):
         table_buttons_layout.addWidget(self.clear_btn)
         table_layout.addLayout(table_buttons_layout)
         table_container.setLayout(table_layout)
-        table_container.setMinimumWidth(300)
+        table_container.setMinimumWidth(char_width(self, 38))
 
         # Splitter
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
