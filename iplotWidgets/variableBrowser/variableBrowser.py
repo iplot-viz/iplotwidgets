@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox
 from PySide6.QtCore import Qt, Signal
 
 from iplotDataAccess.dataSource import DataSource, DS_CODAC_TYPE
+from iplotWidgets.sizing import clamp_to_screen, scaled_px
 from iplotWidgets.variableBrowser.variableTree import VariableTree
 from iplotWidgets.variableBrowser.variableTable import VariableTable
 from iplotLogging import setupLogger as setupLog
@@ -22,9 +23,7 @@ class VariableBrowser(QWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.resize(1000, 800)
-        self.width = 840
-        self.height = 680
+        clamp_to_screen(self, 1000, 800)
         self.setAcceptDrops(True)
         self.setGeometry(
             QStyle.alignedRect(
@@ -97,7 +96,7 @@ class VariableBrowser(QWidget):
         tree_buttons_layout.addWidget(self.main_finish_btn)
         tree_layout.addLayout(tree_buttons_layout)
         tree_container.setLayout(tree_layout)
-        tree_container.setMinimumWidth(300)
+        tree_container.setMinimumWidth(scaled_px(self, 300))
         table_container = QWidget()
         table_layout = QVBoxLayout()
         table_layout.addWidget(self.tableView)
@@ -106,7 +105,7 @@ class VariableBrowser(QWidget):
         table_buttons_layout.addWidget(self.clear_btn)
         table_layout.addLayout(table_buttons_layout)
         table_container.setLayout(table_layout)
-        table_container.setMinimumWidth(300)
+        table_container.setMinimumWidth(scaled_px(self, 300))
 
         # Splitter
         self.splitter = QSplitter(Qt.Orientation.Horizontal)

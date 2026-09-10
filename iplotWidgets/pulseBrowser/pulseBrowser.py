@@ -8,6 +8,7 @@ from PySide6.QtCore import Qt, Signal
 
 from iplotDataAccess.dataAccess import DataSource
 from iplotWidgets.pulseBrowser.PulseTable import PulseTable
+from iplotWidgets.sizing import clamp_to_screen
 from iplotLogging import setupLogger as setupLog
 from iplotDataAccess.appDataAccess import AppDataAccess
 from iplotDataAccess.dataSource import DS_IMASPY_TYPE
@@ -32,9 +33,7 @@ class PulseBrowser(QWidget):
             self._initialized = True
             super().__init__(*args, **kwargs)
 
-            self.resize(1300, 730)
-            self.width = 840
-            self.height = 680
+            clamp_to_screen(self, 1300, 730)
             self.setAcceptDrops(True)
             self.setGeometry(
                 QStyle.alignedRect(

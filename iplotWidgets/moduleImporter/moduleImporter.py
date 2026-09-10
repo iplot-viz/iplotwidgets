@@ -2,6 +2,7 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QHBoxLayout, QVBoxLayout, QMessageBox
 from PySide6.QtCore import Qt, Signal
 from iplotWidgets.moduleImporter.moduleTable import ModuleTable
+from iplotWidgets.sizing import clamp_to_screen
 from iplotProcessing.tools.parsers import Parser
 from typing import List
 
@@ -16,9 +17,7 @@ class ModuleImporter(QWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.resize(500, 400)
-        self.width = 840
-        self.height = 680
+        clamp_to_screen(self, 500, 400)
         self.setAcceptDrops(True)
         self.setGeometry(
             QStyle.alignedRect(

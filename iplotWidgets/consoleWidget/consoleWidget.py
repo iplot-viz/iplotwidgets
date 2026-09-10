@@ -4,6 +4,8 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QWidget, QStyle, QPushButton, QComboBox, QPlainTextEdit, QVBoxLayout, QHBoxLayout, QLabel
 from PySide6.QtCore import Qt, QCoreApplication
 
+from iplotWidgets.sizing import clamp_to_screen
+
 
 class ConsoleWidget(QWidget):
 
@@ -11,7 +13,7 @@ class ConsoleWidget(QWidget):
         super().__init__(*args, **kwargs)
         self.log_handler = logging.Handler()
         self.log_handler.emit = self.log_emit
-        self.resize(1000, 550)
+        clamp_to_screen(self, 1000, 550)
         self.setAcceptDrops(True)
         self.setGeometry(QStyle.alignedRect(Qt.LayoutDirection.LeftToRight,
                                             Qt.AlignmentFlag.AlignCenter,
@@ -27,8 +29,7 @@ class ConsoleWidget(QWidget):
                         background-color: #2b2b2b;          /* Dark background */
                         color: #FFFFFF;                     /* Light color for the text */
                         font-family: Consolas, monospace;   /* Monospaced font */
-                        font-size: 12px;                    /* Font size */
-                        padding: 8px;                       /* Spacing around text */
+                        padding: 0.65em;                    /* Spacing around text */
                     }
         """)
         self.clear_button = QPushButton("Clear console")
