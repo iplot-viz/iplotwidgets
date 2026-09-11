@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from PySide6.QtCore import Qt
 
 from iplotDataAccess.dataSource import (DS_CODAC_TYPE, DS_CSV_TYPE,
-                                        DS_IMASPY_TYPE)
+                                        DS_IMAS_TYPE)
 from iplotWidgets.variableBrowser.models.mtJsonModel import (ImasVarItem,
                                                              UdaVarItem,
                                                              VariableModel)
@@ -142,7 +142,7 @@ class ImasLoadTest(unittest.TestCase):
     field map."""
 
     def setUp(self):
-        self.ds = _make_data_source(DS_IMASPY_TYPE)
+        self.ds = _make_data_source(DS_IMAS_TYPE)
         self.model = VariableModel(data_source=self.ds)
 
     def test_load_struct_creates_folder(self):

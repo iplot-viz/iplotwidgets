@@ -3,7 +3,7 @@ from PySide6 import QtGui
 from PySide6.QtCore import QAbstractItemModel, QModelIndex, QObject, Qt, QSize, QPersistentModelIndex
 import re
 
-from iplotDataAccess.dataSource import DataSource, DS_IMASPY_TYPE, DS_CODAC_TYPE, DS_CSV_TYPE
+from iplotDataAccess.dataSource import DataSource, DS_IMAS_TYPE, DS_CODAC_TYPE, DS_CSV_TYPE
 
 
 class VariableModel(QAbstractItemModel):
@@ -64,7 +64,7 @@ class VariableModel(QAbstractItemModel):
 
         self.beginResetModel()
 
-        if self.data_source.source_type == DS_IMASPY_TYPE:
+        if self.data_source.source_type == DS_IMAS_TYPE:
             self.root_item = ImasVarItem.load(document)
         elif self.data_source.source_type == DS_CODAC_TYPE or self.data_source.source_type == DS_CSV_TYPE:
             self.root_item = UdaVarItem.load(document, UdaVarItem(data_type="folder"), consulted=True)

@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor
 from pandas.core.interchange.dataframe_protocol import DataFrame
 from iplotLogging import setupLogger as setupLog
-from iplotDataAccess.dataSource import DataSource, DS_IMASPY_TYPE
+from iplotDataAccess.dataSource import DataSource, DS_IMAS_TYPE
 
 logger = setupLog.get_logger(__name__)
 
@@ -24,7 +24,7 @@ class PulseTableModel(QAbstractTableModel):
     def __init__(self, data_source: DataSource):
         super(PulseTableModel, self).__init__()
         self.data_source = data_source
-        if self.data_source.source_type == DS_IMASPY_TYPE:
+        if self.data_source.source_type == DS_IMAS_TYPE:
             self._loaded = False
             self._document: pd.DataFrame = pd.DataFrame()
 
@@ -65,7 +65,7 @@ class PulseTableModel(QAbstractTableModel):
             return value
         if role == Qt.ItemDataRole.BackgroundRole and self._is_selected(row):
             return self._selected_background
-        if self.data_source.source_type == DS_IMASPY_TYPE:
+        if self.data_source.source_type == DS_IMAS_TYPE:
             if role == Qt.ItemDataRole.UserRole:
                 if col_name == "uuid":
                     link = self.dataframe.at[self.dataframe.index[row], "dashboard_link"]
@@ -95,7 +95,7 @@ class PulseTableModel(QAbstractTableModel):
         return self._pulse_at(row + self._current_page * self._page_size)
 
     def _pulse_at(self, current_row: int):
-        if self.data_source.source_type == DS_IMASPY_TYPE:
+        if self.data_source.source_type == DS_IMAS_TYPE:
             if "imas_uri" in self.dataframe.columns:
                 # Append cache_mode=none for UDA URIs
                 val = self.dataframe.at[self.dataframe.index[current_row], "imas_uri"]
@@ -200,7 +200,7 @@ class PulseTableModel(QAbstractTableModel):
         Load (or reload) the pulses DataFrame.
         Disk caching with TTL is handled inside get_pulses_df().
         """
-        if self.data_source.source_type == DS_IMASPY_TYPE:
+        if self.data_source.source_type == DS_IMAS_TYPE:
             if self._loaded:
                 return
             df = self.data_source.get_pulses_df()
@@ -232,7 +232,7 @@ class PulseTableModel(QAbstractTableModel):
 
     def get_pulse_info(self, row):
         current_row = row + self._current_page * self._page_size
-        if self.data_source.source_type == DS_IMASPY_TYPE:
+        if self.data_source.source_type == DS_IMAS_TYPE:
             uuid_val = None
             if "uuid" in self.dataframe.columns:
                 uuid_val = str(self.dataframe.at[self.dataframe.index[current_row], "uuid"])
