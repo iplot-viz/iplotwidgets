@@ -10,7 +10,7 @@ from iplotDataAccess.dataAccess import DataSource
 from iplotWidgets.pulseBrowser.PulseTable import PulseTable
 from iplotLogging import setupLogger as setupLog
 from iplotDataAccess.appDataAccess import AppDataAccess
-from iplotDataAccess.dataSource import DS_IMASPY_TYPE
+from iplotDataAccess.dataSource import DS_IMAS_TYPE
 
 logger = setupLog.get_logger(__name__)
 
@@ -293,7 +293,7 @@ class PulseBrowser(QWidget):
             self.add_pulse()
 
     def info_pulse(self, index):
-        if self.get_current_source().source_type == DS_IMASPY_TYPE:
+        if self.get_current_source().source_type == DS_IMAS_TYPE:
             row = index.row()
             logger.info("Getting pulse info")
             self.table.get_pulse_info(row)
@@ -316,7 +316,7 @@ class PulseBrowser(QWidget):
         # Hide/show IMAS data sources based on timestamp requirement
         for i in range(self.sources_combo.count()):
             ds = self.sources_combo.itemData(i)
-            if ds and ds.source_type == DS_IMASPY_TYPE:
+            if ds and ds.source_type == DS_IMAS_TYPE:
                 # Disable IMAS sources when timestamps are required
                 model = self.sources_combo.model()
                 item = model.item(i)
