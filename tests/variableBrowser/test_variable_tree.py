@@ -57,7 +57,32 @@ class HandleItemEnteredTest:
         tree.handle_item_entered(folder_idx)
 
 
+class RowHeightTest:
+    def test_rows_grow_with_the_application_font(self, qapp, tree, mock_data_source):
+        # A fixed row height clips the text as soon as the font outgrows it.
+        from PySide6.QtGui import QFont
+        tree.models[mock_data_source.name].load_document({'a': '', 'b': ''})
+        tree.set_model(mock_data_source.name)
+        first = tree.model().index(0, 0)
+        base_font = qapp.font()
+        before = tree.rowHeight(first)
+        big = QFont(base_font)
+        big.setPixelSize(36)
+        try:
+            qapp.setFont(big)
+            # The application font reaches the widgets through posted events.
+            qapp.processEvents()
+            tree.executeDelayedItemsLayout()
+            after = tree.rowHeight(first)
+            assert after > before
+            assert after >= tree.fontMetrics().height() + 4
+        finally:
+            qapp.setFont(base_font)
+            qapp.processEvents()
+
+
 # Expose pytest classes.
 TestTreeConstruction = TreeConstructionTest
 TestSetModel = SetModelTest
 TestHandleItemEntered = HandleItemEnteredTest
+TestRowHeight = RowHeightTest
