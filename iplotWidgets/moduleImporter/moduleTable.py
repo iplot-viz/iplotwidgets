@@ -6,8 +6,12 @@ from PySide6.QtCore import Qt, Signal
 
 from typing import *
 
+from iplotWidgets.sizing import FontScaledView
 
-class ModuleTable(QTableView):
+
+class ModuleTable(FontScaledView, QTableView):
+    COLUMN_WIDTHS = {0: 100}
+
     def __init__(self):
         QTableView.__init__(self)
         self.setSelectionMode(self.selectionMode().ExtendedSelection)
@@ -15,10 +19,10 @@ class ModuleTable(QTableView):
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         self.horizontalHeader().setStretchLastSection(True)
         self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.setColumnWidth(0, 100)
         self.model = ModuleTableModel()
         self.setModel(self.model)
         self.setItemDelegate(CustomItemDelegate())
+        self.apply_font_metrics()
 
     def remove_selected_module(self, rows) -> List[int]:
         self.model.remove_row(rows)

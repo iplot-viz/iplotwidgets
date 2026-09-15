@@ -3,10 +3,13 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QTreeView, QToolTip, QAbstractItemView
 from iplotDataAccess.appDataAccess import AppDataAccess
 from iplotDataAccess.dataSource import DS_CODAC_TYPE
+from iplotWidgets.sizing import FontScaledView
 from iplotWidgets.variableBrowser.models.mtJsonModel import VariableModel
 
 
-class VariableTree(QTreeView):
+class VariableTree(FontScaledView, QTreeView):
+    COLUMN_WIDTHS = {0: 205}
+
     def __init__(self):
         super().__init__()
         self.models = {'SEARCH': VariableModel(data_source=AppDataAccess.da.default_ds, search=True)}
@@ -14,7 +17,6 @@ class VariableTree(QTreeView):
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.open_menu)
         self.setHeaderHidden(True)
-        self.setColumnWidth(0, 205)
         self.setMouseTracking(True)
         self.entered.connect(self.handle_item_entered)
         self.setAlternatingRowColors(True)
@@ -28,6 +30,7 @@ class VariableTree(QTreeView):
         self.setExpandsOnDoubleClick(False)
         self.doubleClicked.connect(self.toggle_branch)
         self.load_model(AppDataAccess.da.default_ds)
+        self.apply_font_metrics()
         self.dragged_item = None
 
     def get_model(self) -> VariableModel:

@@ -108,8 +108,10 @@ class VariableModel(QAbstractItemModel):
             if index.column() == 1:
                 return item.key
         elif role == Qt.ItemDataRole.SizeHintRole:
-            "giving size hint"
-            return QSize(1000, 20)
+            # The row must fit the application font, which the UI scale can
+            # enlarge; 20 is the usual height at the default font.
+            font_height = QtGui.QFontMetrics(QtGui.QGuiApplication.font()).height()
+            return QSize(1000, max(20, font_height + 4))
         elif role == Qt.ItemDataRole.DecorationRole:
             if item.is_folder():
                 return QtGui.QIcon(QtGui.QPixmap("iplotWidgets/iplotWidgets/variableBrowser/icons/folder.svg"))
