@@ -46,6 +46,7 @@ class PulseBrowser(QWidget):
             )
             self.setWindowTitle("Pulse search")
             self.flag = ""
+            self._selected_pulses_provider = None
             self._single_selection_mode = False
             self._require_timestamps = False
             self.table = PulseTable()
@@ -112,11 +113,18 @@ class PulseBrowser(QWidget):
             self.page_label = QLabel()
             self.update_page_label()
 
+            # Direct links to the pages around the current one, rebuilt with
+            # the label since both follow the same page state.
+            self.page_links_layout = QHBoxLayout()
+            self.page_links_layout.setSpacing(0)
+            self.update_page_links()
+
             pagination_layout.addWidget(self.rows_text)
             pagination_layout.addWidget(self.rows_page)
             pagination_layout.addStretch()
             pagination_layout.addWidget(self.page_label)
             pagination_layout.addWidget(self.previous_page)
+            pagination_layout.addLayout(self.page_links_layout)
             pagination_layout.addWidget(self.next_page)
 
             mid_v_layout = QVBoxLayout()
@@ -149,6 +157,40 @@ class PulseBrowser(QWidget):
     def update_page_label(self):
         self.page_label.setText(f"Page {self.table.get_current_page()} of {self.table.get_total_pages()}")
         self.update_pagination_buttons()
+        self.update_page_links()
+
+    def update_page_links(self):
+        layout = getattr(self, 'page_links_layout', None)
+        if layout is None:
+            return
+        while layout.count():
+            widget = layout.takeAt(0).widget()
+            if widget is not None:
+                # Detach at once: a widget pending deletion would still be
+                # painted at its old place until the event loop runs.
+                widget.setParent(None)
+                widget.deleteLater()
+        current = self.table.get_current_page()
+        for page in self.table.get_page_links():
+            if page is None:
+                layout.addWidget(QLabel('…'))
+                continue
+            button = QPushButton(str(page))
+            button.setFlat(True)
+            button.setCheckable(True)
+            button.setChecked(page == current)
+            button.setEnabled(page != current)
+            font = button.font()
+            font.setBold(page == current)
+            button.setFont(font)
+            button.setFixedWidth(button.fontMetrics().horizontalAdvance(str(page)) + 14)
+            button.clicked.connect(lambda *_, page=page: self.go_to_page(page))
+            layout.addWidget(button)
+
+    def go_to_page(self, page: int):
+        self.table.get_current_model().go_to_page(page)
+        self.update_page_label()
+        self.table.resizeColumnsToContents()
 
     def update_pagination_buttons(self):
         total_pages = self.table.get_total_pages()
@@ -199,6 +241,29 @@ class PulseBrowser(QWidget):
         pulse = self.table.models[self.table.current_model_name].get_pulse(rows[0])
         self.update_finish.emit(pulse)
         self.table.clearSelection()
+
+    def set_selected_pulses(self, pulses):
+        """Mark the pulses the caller is already using, so the table can
+        highlight them and sort them to the top."""
+        self.table.set_selected_pulses(pulses)
+
+    def set_selected_pulses_provider(self, provider):
+        """Register a callable returning the pulses currently in use.
+
+        The browser is a singleton opened from several places, so rather
+        than each opener pushing its own view it asks the provider every
+        time it is shown and whenever ``refresh_selected_pulses`` is called.
+        """
+        self._selected_pulses_provider = provider
+        self.refresh_selected_pulses()
+
+    def refresh_selected_pulses(self):
+        if self._selected_pulses_provider is not None:
+            self.set_selected_pulses(self._selected_pulses_provider())
+
+    def showEvent(self, event):
+        self.refresh_selected_pulses()
+        super().showEvent(event)
 
     def set_update_mode(self, enabled: bool):
         # Only one action button is visible at a time. Callers must set
