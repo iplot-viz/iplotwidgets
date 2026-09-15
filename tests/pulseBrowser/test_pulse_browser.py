@@ -118,6 +118,82 @@ class PulseBrowserSearchExtendedTest:
         assert fast_pulse_browser.table.models['SEARCH'].rowCount() > 0
 
 
+class PulseBrowserSelectedPulsesTest:
+    """``set_selected_pulses`` is how MINT tells the browser which pulses
+    are already in use. The flag must reach the model on screen, the
+    search results and any model created afterwards. With
+    ``set_selected_pulses_provider`` the browser asks instead: whenever it
+    is shown and on ``refresh_selected_pulses``."""
+
+    def _df(self, *pulses):
+        import pandas as pd
+        return pd.DataFrame({
+            'Pulse': list(pulses),
+            'Time From': pd.to_datetime(['2026-04-01'] * len(pulses)),
+        })
+
+    def test_selection_reaches_the_current_model(self, fast_pulse_browser, mock_data_source):
+        mock_data_source.get_pulses_df = lambda **kw: self._df('A/1', 'A/2')
+        fast_pulse_browser.refresh()
+        fast_pulse_browser.set_selected_pulses(['A/2'])
+        model = fast_pulse_browser.table.get_current_model()
+        assert list(model.dataframe['Selected']) == [False, True]
+
+    def test_selection_reaches_search_results(self, fast_pulse_browser, mock_data_source):
+        fast_pulse_browser.set_selected_pulses(['B/1'])
+        mock_data_source.search_pulses_df = lambda text: self._df('B/1', 'B/2')
+        fast_pulse_browser.searchbar.setText('B')
+        fast_pulse_browser.search()
+        model = fast_pulse_browser.table.models['SEARCH']
+        assert list(model.dataframe['Selected']) == [True, False]
+
+    def test_selection_reaches_models_created_later(self, fast_pulse_browser):
+        from types import SimpleNamespace
+        fast_pulse_browser.set_selected_pulses(['C/2'])
+        source = SimpleNamespace(name='later', source_type='csv',
+                                 get_pulses_df=lambda: self._df('C/1', 'C/2'))
+        fast_pulse_browser.table.load_model(source)
+        model = fast_pulse_browser.table.models['later']
+        assert list(model.dataframe['Selected']) == [False, True]
+
+    def test_provider_is_asked_when_the_browser_is_shown(self, fast_pulse_browser, mock_data_source):
+        mock_data_source.get_pulses_df = lambda **kw: self._df('D/1', 'D/2')
+        fast_pulse_browser.refresh()
+        in_use = ['D/1']
+        fast_pulse_browser.set_selected_pulses_provider(lambda: list(in_use))
+        model = fast_pulse_browser.table.get_current_model()
+        assert list(model.dataframe['Selected']) == [True, False]
+        in_use[:] = ['D/2']
+        fast_pulse_browser.show()
+        try:
+            assert list(model.dataframe['Selected']) == [False, True]
+        finally:
+            fast_pulse_browser.hide()
+
+    def test_refresh_selected_pulses_pulls_from_the_provider(self, fast_pulse_browser, mock_data_source):
+        mock_data_source.get_pulses_df = lambda **kw: self._df('E/1', 'E/2')
+        fast_pulse_browser.refresh()
+        in_use = []
+        fast_pulse_browser.set_selected_pulses_provider(lambda: list(in_use))
+        model = fast_pulse_browser.table.get_current_model()
+        assert list(model.dataframe['Selected']) == [False, False]
+        in_use.append('E/2')
+        fast_pulse_browser.refresh_selected_pulses()
+        assert list(model.dataframe['Selected']) == [False, True]
+
+    def test_without_a_provider_the_explicit_selection_survives_show(self, fast_pulse_browser, mock_data_source):
+        mock_data_source.get_pulses_df = lambda **kw: self._df('F/1', 'F/2')
+        fast_pulse_browser.refresh()
+        fast_pulse_browser.set_selected_pulses(['F/1'])
+        fast_pulse_browser.refresh_selected_pulses()
+        fast_pulse_browser.show()
+        try:
+            model = fast_pulse_browser.table.get_current_model()
+            assert list(model.dataframe['Selected']) == [True, False]
+        finally:
+            fast_pulse_browser.hide()
+
+
 class PulseBrowserPaginationButtonsTest:
     def test_previous_pulses_at_first_page_is_safe(self, fast_pulse_browser):
         # No exception even though there's no model data loaded.
@@ -127,6 +203,65 @@ class PulseBrowserPaginationButtonsTest:
         fast_pulse_browser.next_pulses()
 
 
+def _page_link_texts(browser):
+    layout = browser.page_links_layout
+    return [layout.itemAt(i).widget().text() for i in range(layout.count())]
+
+
+def _page_link_button(browser, page):
+    layout = browser.page_links_layout
+    for i in range(layout.count()):
+        widget = layout.itemAt(i).widget()
+        if widget.text() == str(page):
+            return widget
+    raise AssertionError(f"no link to page {page} in {_page_link_texts(browser)}")
+
+
+class PulseBrowserPageLinksTest:
+    """Direct page links sit between the arrows and follow the page
+    state, so a long pulse list is reachable without paging one by one."""
+
+    def _load(self, browser, mock_data_source, rows):
+        import pandas as pd
+        mock_data_source.get_pulses_df = lambda **kw: pd.DataFrame({'Pulse': [f'P{i}' for i in range(rows)]})
+        browser.refresh()
+
+    def test_no_links_without_pulses(self, fast_pulse_browser):
+        assert _page_link_texts(fast_pulse_browser) == []
+
+    def test_links_show_the_ends_and_the_window_around_the_current_page(self, fast_pulse_browser,
+                                                                          mock_data_source):
+        self._load(fast_pulse_browser, mock_data_source, rows=2000)
+        fast_pulse_browser.go_to_page(5)
+        assert _page_link_texts(fast_pulse_browser) == ['1', '…', '3', '4', '5', '6', '7', '…', '100']
+        assert fast_pulse_browser.table.get_current_page() == 5
+
+    def test_clicking_a_link_turns_the_page(self, fast_pulse_browser, mock_data_source):
+        self._load(fast_pulse_browser, mock_data_source, rows=100)
+        _page_link_button(fast_pulse_browser, 3).click()
+        assert fast_pulse_browser.table.get_current_page() == 3
+        assert fast_pulse_browser.page_label.text() == 'Page 3 of 5'
+        assert fast_pulse_browser.table.get_current_model().rowCount() == 20
+        _page_link_button(fast_pulse_browser, 5).click()
+        assert fast_pulse_browser.table.get_current_page() == 5
+        assert not fast_pulse_browser.next_page.isEnabled()
+
+    def test_current_page_link_is_marked_and_inert(self, fast_pulse_browser, mock_data_source):
+        self._load(fast_pulse_browser, mock_data_source, rows=100)
+        fast_pulse_browser.next_pulses()
+        current = _page_link_button(fast_pulse_browser, 2)
+        assert current.isChecked() and not current.isEnabled()
+        assert _page_link_button(fast_pulse_browser, 3).isEnabled()
+
+    def test_links_follow_the_arrows_and_the_page_size(self, fast_pulse_browser, mock_data_source):
+        self._load(fast_pulse_browser, mock_data_source, rows=100)
+        fast_pulse_browser.next_pulses()
+        assert _page_link_button(fast_pulse_browser, 2).isChecked()
+        fast_pulse_browser.rows_page.setCurrentText("50")
+        assert _page_link_texts(fast_pulse_browser) == ['1', '2']
+        assert _page_link_button(fast_pulse_browser, 1).isChecked()
+
+
 # pytest-style classes (not unittest.TestCase) need explicit collection
 # helpers; expose the classes at module level so pytest discovers them.
 TestPulseBrowserSingleton = PulseBrowserSingletonTest
@@ -134,4 +269,6 @@ TestPulseBrowserSearch = PulseBrowserSearchTest
 TestPulseBrowserPagination = PulseBrowserPaginationTest
 TestPulseBrowserRefresh = PulseBrowserRefreshTest
 TestPulseBrowserSearchExtended = PulseBrowserSearchExtendedTest
+TestPulseBrowserSelectedPulses = PulseBrowserSelectedPulsesTest
 TestPulseBrowserPaginationButtons = PulseBrowserPaginationButtonsTest
+TestPulseBrowserPageLinks = PulseBrowserPageLinksTest

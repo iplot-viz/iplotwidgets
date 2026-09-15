@@ -15,7 +15,8 @@ def populated_pulse_table(qapp, app_data_access):
 
     The clipboard tests need actual rows and columns to select; the
     fixture wires up a deterministic 2-row × 6-col dataframe so the
-    output of Ctrl+C is byte-stable.
+    output of Ctrl+C is byte-stable. The model prepends its Selected
+    column, so Pulse is view column 1 and Status view column 5.
     """
     table = PulseTable()
     df = pd.DataFrame({
@@ -57,7 +58,7 @@ class TestPulseTableCopySingleColumn:
         assert QApplication.clipboard().text() == "baseline"
 
     def test_single_column_selection_copies_without_header(self, populated_pulse_table):
-        _select_cells(populated_pulse_table, rows=[0, 1], cols=[0])
+        _select_cells(populated_pulse_table, rows=[0, 1], cols=[1])
         _press_copy(populated_pulse_table)
 
         # Single column: header row is skipped (matches statistics-table behaviour).
@@ -68,7 +69,7 @@ class TestPulseTableCopySingleColumn:
 
 class TestPulseTableCopyMultipleColumns:
     def test_multi_column_selection_includes_header_row(self, populated_pulse_table):
-        _select_cells(populated_pulse_table, rows=[0], cols=[0, 4])
+        _select_cells(populated_pulse_table, rows=[0], cols=[1, 5])
         _press_copy(populated_pulse_table)
 
         clipboard = QApplication.clipboard().text()
@@ -80,7 +81,7 @@ class TestPulseTableCopyMultipleColumns:
         assert lines[1] == "B/2\tcompleted"
 
     def test_multi_row_multi_column_preserves_order(self, populated_pulse_table):
-        _select_cells(populated_pulse_table, rows=[1, 0], cols=[4, 0])
+        _select_cells(populated_pulse_table, rows=[1, 0], cols=[5, 1])
         _press_copy(populated_pulse_table)
 
         clipboard = QApplication.clipboard().text()

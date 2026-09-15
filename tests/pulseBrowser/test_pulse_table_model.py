@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pandas as pd
 from PySide6.QtCore import Qt
 
-from iplotWidgets.pulseBrowser.models.PulseTableModel import PulseTableModel
+from iplotWidgets.pulseBrowser.models.PulseTableModel import PulseTableModel, SELECTED_COL
 
 
 def _make_model() -> PulseTableModel:
@@ -108,6 +108,42 @@ class PaginationTest(unittest.TestCase):
         self.assertEqual(empty.get_total_pages(), 0)
         self.assertEqual(empty.get_real_page(), 0)
 
+    def test_go_to_page_is_one_indexed(self):
+        self.model.go_to_page(3)
+        self.assertEqual(self.model.get_real_page(), 3)
+        self.assertEqual(self.model.rowCount(), 10)
+
+    def test_go_to_page_ignores_targets_out_of_range(self):
+        self.model.go_to_page(2)
+        for target in (0, 4, -1):
+            self.model.go_to_page(target)
+            self.assertEqual(self.model.get_real_page(), 2)
+
+
+class PageLinksTest(unittest.TestCase):
+    """The links shown between the arrows: first and last page plus two
+    on each side of the current one, ``None`` where pages are skipped."""
+
+    def test_window_in_the_middle_of_a_long_list(self):
+        self.assertEqual(PulseTableModel.page_links(5, 100), [1, None, 3, 4, 5, 6, 7, None, 100])
+
+    def test_window_touching_the_first_page_has_no_gap(self):
+        self.assertEqual(PulseTableModel.page_links(1, 100), [1, 2, 3, None, 100])
+        self.assertEqual(PulseTableModel.page_links(3, 100), [1, 2, 3, 4, 5, None, 100])
+
+    def test_window_touching_the_last_page_has_no_gap(self):
+        self.assertEqual(PulseTableModel.page_links(100, 100), [1, None, 98, 99, 100])
+
+    def test_adjacent_pages_are_not_replaced_by_a_gap(self):
+        self.assertEqual(PulseTableModel.page_links(4, 100), [1, 2, 3, 4, 5, 6, None, 100])
+
+    def test_short_lists_link_every_page(self):
+        self.assertEqual(PulseTableModel.page_links(2, 3), [1, 2, 3])
+        self.assertEqual(PulseTableModel.page_links(1, 1), [1])
+
+    def test_no_pages_no_links(self):
+        self.assertEqual(PulseTableModel.page_links(0, 0), [])
+
 
 class DataFormattingTest(unittest.TestCase):
     """The ``data`` override wraps pandas types in human-readable strings:
@@ -170,6 +206,72 @@ class GetPulseTest(unittest.TestCase):
         # After default sort the dataframe order is preserved here (no
         # datetime column), so row 0 is "ITER:foo/1".
         self.assertEqual(model.get_pulse(0), 'ITER:foo/1')
+
+
+class SelectedColumnTest(unittest.TestCase):
+    """The model prepends a ``Selected`` column flagging the pulses the
+    caller already uses (MINT's pulse field). It must survive reloads,
+    follow later selection changes, sort the selected pulses together with
+    the rest most recent first, and leave ``get_pulse`` untouched."""
+
+    def setUp(self):
+        self.model = _make_model()
+        self.df = pd.DataFrame({
+            'Pulse': ['P/1', 'P/2', 'P/3', 'P/4'],
+            'Time From': pd.to_datetime(['2026-01-01', '2026-01-02',
+                                          '2026-01-03', '2026-01-04']),
+        })
+
+    def _column(self, name):
+        col = self.model.dataframe.columns.get_loc(name)
+        return [self.model.data(self.model.index(r, col), role=Qt.ItemDataRole.DisplayRole)
+                for r in range(self.model.rowCount())]
+
+    def test_selected_column_comes_first_and_is_empty_by_default(self):
+        self.model.load_document(self.df)
+        self.assertEqual(self.model.dataframe.columns[0], SELECTED_COL)
+        self.assertEqual(self.model.headerData(0, Qt.Orientation.Horizontal,
+                                               Qt.ItemDataRole.DisplayRole), SELECTED_COL)
+        self.assertEqual(self._column(SELECTED_COL), ['', '', '', ''])
+
+    def test_selection_set_before_load_is_applied_on_load(self):
+        self.model.set_selected_pulses(['P/2'])
+        self.model.load_document(self.df)
+        # Default order is most recent first: P/4, P/3, P/2, P/1.
+        self.assertEqual(self._column(SELECTED_COL), ['', '', '✓', ''])
+
+    def test_selection_change_after_load_refreshes_the_column(self):
+        self.model.load_document(self.df)
+        self.model.set_selected_pulses([' P/1 ', 'P/4'])
+        self.assertEqual(self._column(SELECTED_COL), ['✓', '', '', '✓'])
+        self.model.set_selected_pulses([])
+        self.assertEqual(self._column(SELECTED_COL), ['', '', '', ''])
+
+    def test_selected_rows_are_highlighted(self):
+        self.model.load_document(self.df)
+        self.model.set_selected_pulses(['P/4'])
+        pulse_col = self.model.dataframe.columns.get_loc('Pulse')
+        self.assertIsNotNone(self.model.data(self.model.index(0, pulse_col),
+                                             role=Qt.ItemDataRole.BackgroundRole))
+        self.assertIsNone(self.model.data(self.model.index(1, pulse_col),
+                                          role=Qt.ItemDataRole.BackgroundRole))
+
+    def test_get_pulse_still_returns_the_pulse_identifier(self):
+        self.model.set_selected_pulses(['P/3'])
+        self.model.load_document(self.df)
+        self.assertEqual(self.model.get_pulse(0), 'P/4')
+
+    def test_sorting_by_selected_groups_them_and_keeps_the_rest_most_recent_first(self):
+        self.model.load_document(self.df)
+        self.model.set_selected_pulses(['P/1', 'P/3'])
+        self.model.sort(0, Qt.SortOrder.DescendingOrder)
+        self.assertEqual(list(self.model.dataframe['Pulse']), ['P/3', 'P/1', 'P/4', 'P/2'])
+        self.model.sort(0, Qt.SortOrder.AscendingOrder)
+        self.assertEqual(list(self.model.dataframe['Pulse']), ['P/4', 'P/2', 'P/3', 'P/1'])
+
+    def test_empty_source_document_gets_no_selected_column(self):
+        self.model.load_document(pd.DataFrame())
+        self.assertEqual(self.model.columnCount(), 0)
 
 
 class LoadNonImasPathTest(unittest.TestCase):

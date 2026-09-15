@@ -5,11 +5,17 @@ from typing import Any, Union, List
 import pandas as pd
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelIndex, Signal
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QBrush, QColor
 from pandas.core.interchange.dataframe_protocol import DataFrame
 from iplotLogging import setupLogger as setupLog
 from iplotDataAccess.dataSource import DataSource, DS_IMASPY_TYPE
 
 logger = setupLog.get_logger(__name__)
+
+# Leading column flagging the pulses the caller already uses; the model
+# adds it in front of whatever columns the data source returns.
+SELECTED_COL = 'Selected'
+
 
 class PulseTableModel(QAbstractTableModel):
     layoutChanged = Signal()
@@ -21,8 +27,10 @@ class PulseTableModel(QAbstractTableModel):
         if self.data_source.source_type == DS_IMASPY_TYPE:
             self._loaded = False
             self._document: pd.DataFrame = pd.DataFrame()
-        
+
         self.dataframe: pd.DataFrame = pd.DataFrame()
+        self.selected_pulses: set = set()
+        self._selected_background = QBrush(QColor(255, 244, 200))
 
         self._current_page: int = 0
         self._page_size: int = 20
@@ -48,11 +56,15 @@ class PulseTableModel(QAbstractTableModel):
 
         if role == Qt.ItemDataRole.DisplayRole:
             value = self.dataframe.iloc[row, col]
+            if col_name == SELECTED_COL:
+                return '✓' if value else ''
             if isinstance(value, pd.Timestamp):
                 return value.strftime('%Y-%m-%d %H:%M:%S')
             if isinstance(value, pd.Timedelta):
                 return self.format_duration(value)
             return value
+        if role == Qt.ItemDataRole.BackgroundRole and self._is_selected(row):
+            return self._selected_background
         if self.data_source.source_type == DS_IMASPY_TYPE:
             if role == Qt.ItemDataRole.UserRole:
                 if col_name == "uuid":
@@ -80,7 +92,9 @@ class PulseTableModel(QAbstractTableModel):
         self.layoutChanged.emit()
 
     def get_pulse(self, row: int):
-        current_row = row + self._current_page * self._page_size
+        return self._pulse_at(row + self._current_page * self._page_size)
+
+    def _pulse_at(self, current_row: int):
         if self.data_source.source_type == DS_IMASPY_TYPE:
             if "imas_uri" in self.dataframe.columns:
                 # Append cache_mode=none for UDA URIs
@@ -92,9 +106,41 @@ class PulseTableModel(QAbstractTableModel):
                         val = f"{val}{sep}cache_mode=none"
                 return val
             else:
-                return self.dataframe.iloc[current_row, 0]
+                return self.dataframe.iloc[current_row, self._data_col(0)]
         else:
-            return self.dataframe.iloc[current_row, 0]
+            return self.dataframe.iloc[current_row, self._data_col(0)]
+
+    def _data_col(self, position: int) -> int:
+        # Source columns keep their relative order behind the Selected one.
+        return position + 1 if SELECTED_COL in self.dataframe.columns else position
+
+    def _is_selected(self, row: int) -> bool:
+        return SELECTED_COL in self.dataframe.columns and bool(self.dataframe[SELECTED_COL].iat[row])
+
+    def _time_column(self):
+        for col in self.dataframe.columns:
+            if pd.api.types.is_datetime64_any_dtype(self.dataframe[col]):
+                return col
+        return None
+
+    def set_selected_pulses(self, pulses) -> None:
+        """Flag the given pulse identifiers (as returned by ``get_pulse``)."""
+        self.selected_pulses = {str(p).strip() for p in pulses if str(p).strip()}
+        if self.dataframe.empty:
+            return
+        self._refresh_selected_column()
+        rows = self.rowCount()
+        if rows > 0:
+            self.dataChanged.emit(self.index(0, 0), self.index(rows - 1, self.columnCount() - 1))
+
+    def _refresh_selected_column(self) -> None:
+        if not [c for c in self.dataframe.columns if c != SELECTED_COL]:
+            return
+        flags = [str(self._pulse_at(i)) in self.selected_pulses for i in range(len(self.dataframe))]
+        if SELECTED_COL in self.dataframe.columns:
+            self.dataframe[SELECTED_COL] = flags
+        else:
+            self.dataframe.insert(0, SELECTED_COL, flags)
 
     def next_page(self) -> None:
         # _current_page is 0-indexed; valid range is [0, total_pages - 1].
@@ -106,6 +152,30 @@ class PulseTableModel(QAbstractTableModel):
         if self._current_page > 0:
             self._current_page -= 1
             self.layoutChanged.emit()
+
+    def go_to_page(self, page: int) -> None:
+        """Jump to the 1-indexed ``page``; out-of-range targets are ignored."""
+        if 1 <= page <= self.get_total_pages() and page - 1 != self._current_page:
+            self._current_page = page - 1
+            self.layoutChanged.emit()
+
+    @staticmethod
+    def page_links(current: int, total: int) -> list:
+        """Pages worth a direct link around the 1-indexed ``current`` one.
+
+        The first and last pages plus a window of two on each side of the
+        current one, in order, with ``None`` standing for the pages skipped
+        between them: ``[1, None, 3, 4, 5, 6, 7, None, 100]``.
+        """
+        if total < 1:
+            return []
+        wanted = {1, total} | {p for p in range(current - 2, current + 3) if 1 <= p <= total}
+        links = []
+        for page in sorted(wanted):
+            if links and page != links[-1] + 1:
+                links.append(None)
+            links.append(page)
+        return links
 
     def get_total_pages(self) -> int:
         rows = self.dataframe.shape[0]
@@ -152,11 +222,11 @@ class PulseTableModel(QAbstractTableModel):
         # Clear previous dataframe if existed
         self.dataframe = new_df
 
-        for col in self.dataframe.columns:
-            if pd.api.types.is_datetime64_any_dtype(self.dataframe[col]):
-                self.dataframe = self.dataframe.sort_values(
-                    by=col, ascending=False, ignore_index=True)
-                break
+        time_col = self._time_column()
+        if time_col is not None:
+            self.dataframe = self.dataframe.sort_values(
+                by=time_col, ascending=False, ignore_index=True)
+        self._refresh_selected_column()
 
         self.endResetModel()
 
@@ -174,8 +244,8 @@ class PulseTableModel(QAbstractTableModel):
             logger.info(info)
             logger.info("====================================================")
         else:
-            pulse = int(self.dataframe.iloc[current_row, 0])
-            run = int(self.dataframe.iloc[current_row, 1])
+            pulse = int(self.dataframe.iloc[current_row, self._data_col(0)])
+            run = int(self.dataframe.iloc[current_row, self._data_col(1)])
             info = self.data_source.get_pulse_info(pulse=pulse, run=run)
             logger.info("====================================================")
             logger.info(f"pulse = {pulse} run={run}")
@@ -211,6 +281,17 @@ class PulseTableModel(QAbstractTableModel):
         ascending = (order == Qt.SortOrder.AscendingOrder)
 
         self.layoutAboutToBeChanged.emit()
+
+        if col_name == SELECTED_COL:
+            # Selected pulses grouped together, the rest most recent first.
+            keys, orders = [SELECTED_COL], [ascending]
+            time_col = self._time_column()
+            if time_col is not None:
+                keys.append(time_col)
+                orders.append(False)
+            self.dataframe.sort_values(by=keys, ascending=orders, inplace=True, ignore_index=True)
+            self.layoutChanged.emit()
+            return
 
         # Vectorized numeric conversion: will be NaN if not numeric
         numeric_key = pd.to_numeric(self.dataframe[col_name], errors='coerce')
