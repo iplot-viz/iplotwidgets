@@ -4,7 +4,7 @@ import time
 import pandas as pd
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox, QCheckBox, QHBoxLayout, \
-    QVBoxLayout, QProgressBar, QSplitter, QLabel
+    QVBoxLayout, QProgressBar, QSplitter, QLabel, QSizePolicy
 from PySide6.QtCore import Qt, Signal
 
 from iplotDataAccess.dataSource import DataSource, DS_CODAC_TYPE
@@ -80,6 +80,9 @@ class VariableBrowser(QWidget):
         self.hmi_check = QCheckBox('Synoptic variables')
         self.hmi_check.toggled.connect(self.toggle_hmi)
         self.result_label = QLabel()
+        # Every other widget of the row is vertically fixed; a label left on the
+        # default policy stretches the row over the tree when the panel grows.
+        self.result_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
         top_h_layout = QHBoxLayout()
         top_h_layout.addWidget(self.sources_combo)

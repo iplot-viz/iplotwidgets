@@ -24,6 +24,17 @@ class VariableBrowserConstructionTest:
         browser = VariableBrowser()
         assert browser.get_current_source() is mock_data_source
 
+    def test_the_search_row_keeps_its_height_when_the_panel_grows(self, qapp,
+                                                                  app_data_access):
+        """A widget left on the default size policy in the search row makes the
+        row share the free space with the tree, which then loses half the panel."""
+        browser = VariableBrowser()
+        browser.resize(900, 800)
+        browser.show()
+        qapp.processEvents()
+        browser.layout().activate()
+        assert browser.layout().itemAt(0).geometry().height() < browser.height() // 4
+
 
 @pytest.fixture
 def fast_browser(qapp, app_data_access, monkeypatch):
