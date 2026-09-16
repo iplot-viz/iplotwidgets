@@ -67,6 +67,26 @@ class SearchFlowTest:
         search_model = fast_browser.tree.models['SEARCH']
         assert search_model.rowCount() > 0
 
+    def test_search_reports_the_number_of_variables_found(self, fast_browser,
+                                                          mock_data_source):
+        mock_data_source.get_var_dict = lambda **kw: {'A': {'A-X:V1': '', 'A-Y:V2': ''}, 'B:V3': ''}
+        fast_browser.searchbar.setText("var")
+        fast_browser.search()
+        assert fast_browser.result_label.text() == '3 entries found'
+
+    def test_search_without_results_reports_zero(self, fast_browser, mock_data_source):
+        mock_data_source.get_var_dict = lambda **kw: {}
+        fast_browser.searchbar.setText("nothing")
+        fast_browser.search()
+        assert fast_browser.result_label.text() == '0 entries found'
+
+    def test_editing_the_text_clears_the_count(self, fast_browser, mock_data_source):
+        mock_data_source.get_var_dict = lambda **kw: {'matched_var': ''}
+        fast_browser.searchbar.setText("matched")
+        fast_browser.search()
+        fast_browser.searchbar.setText("matched_")
+        assert fast_browser.result_label.text() == ''
+
     def test_search_with_no_results_loads_empty_document(self, fast_browser,
                                                           mock_data_source):
         mock_data_source.get_var_dict = lambda **kw: {}
@@ -295,6 +315,24 @@ class HmiVariablesTest:
         search_model = hmi_browser.tree.models['SEARCH']
         assert ([item.key for item in search_model.root_item.children]
                 == ['VAR-B:TT01', 'VAR-C:CT01'])
+
+    def test_bracketed_unit_combines_with_free_text(self, hmi_browser):
+        hmi_browser.hmi_check.setChecked(True)
+        hmi_browser.type_search.setCurrentText('contains')
+        for text in ('[kA] current', 'current [kA]'):
+            hmi_browser.searchbar.setText(text)
+            hmi_browser.search()
+            search_model = hmi_browser.tree.models['SEARCH']
+            assert [item.key for item in search_model.root_item.children] == ['VAR-C:CT01'], text
+            assert hmi_browser.result_label.text() == '1 entry found'
+
+    def test_bracketed_unit_and_free_text_must_both_match(self, hmi_browser):
+        hmi_browser.hmi_check.setChecked(True)
+        hmi_browser.searchbar.setText('[K] current')
+        hmi_browser.type_search.setCurrentText('contains')
+        hmi_browser.search()
+        assert hmi_browser.tree.models['SEARCH'].root_item.children == []
+        assert hmi_browser.result_label.text() == '0 entries found'
 
     def test_uncheck_returns_to_source_model(self, hmi_browser, mock_data_source):
         hmi_browser.hmi_check.setChecked(True)
