@@ -4,7 +4,7 @@ import time
 import pandas as pd
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox, QCheckBox, QHBoxLayout, \
-    QVBoxLayout, QProgressBar, QSplitter
+    QVBoxLayout, QProgressBar, QSplitter, QLabel, QSizePolicy
 from PySide6.QtCore import Qt, Signal
 
 from iplotDataAccess.dataSource import DataSource, DS_CODAC_TYPE
@@ -19,6 +19,9 @@ logger = setupLog.get_logger(__name__)
 
 class VariableBrowser(QWidget):
     cmd_finish = Signal(object)
+
+    #: A unit between square brackets in the search text, e.g. '[K]'.
+    _UNIT_TOKEN = re.compile(r'\[([^\]]+)\]')
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -76,6 +79,10 @@ class VariableBrowser(QWidget):
         # Only shown for sources with a controls metadata server configured.
         self.hmi_check = QCheckBox('Synoptic variables')
         self.hmi_check.toggled.connect(self.toggle_hmi)
+        self.result_label = QLabel()
+        # Every other widget of the row is vertically fixed; a label left on the
+        # default policy stretches the row over the tree when the panel grows.
+        self.result_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
         top_h_layout = QHBoxLayout()
         top_h_layout.addWidget(self.sources_combo)
@@ -84,6 +91,7 @@ class VariableBrowser(QWidget):
         top_h_layout.addWidget(self.type_search)
         top_h_layout.addWidget(self.search_btn)
         top_h_layout.addWidget(self.hmi_check)
+        top_h_layout.addWidget(self.result_label)
         top_v_layout = QVBoxLayout()
         top_v_layout.addLayout(top_h_layout)
         top_v_layout.addWidget(self.progress_bar)
@@ -126,6 +134,7 @@ class VariableBrowser(QWidget):
 
     def change_model(self):
         new_source = self.get_current_source()
+        self.result_label.clear()
         self._update_hmi_visibility()
         if self.hmi_check.isChecked():
             self.load_hmi_model()
@@ -141,6 +150,7 @@ class VariableBrowser(QWidget):
         self.hmi_check.setVisible(available)
 
     def toggle_hmi(self, checked):
+        self.result_label.clear()
         if checked:
             self.load_hmi_model()
         else:
@@ -163,6 +173,7 @@ class VariableBrowser(QWidget):
         self.tree.load_hmi_model(self.get_current_source(), self._hmi_document(hmi_vars), hmi_vars)
 
     def update_display(self):
+        self.result_label.clear()
         text = self.searchbar.text()
         if len(text) < 3:
             if self.hmi_check.isChecked():
@@ -194,25 +205,32 @@ class VariableBrowser(QWidget):
         """Filter the HMI variable list locally: unlike the server search, the
         pattern is also matched against the description and the unit."""
         hmi_vars = self.get_hmi_vars()
-        unit = re.fullmatch(r'\[(.+)\]', text.strip())
-        if unit:
+        unit = None
+        token = self._UNIT_TOKEN.search(text)
+        if token:
             # "[K]" is the unit as shown in the leaf label and means "every
-            # variable measured in K", so the brackets direct the search to
-            # the unit field alone and the match is exact unless the user
-            # adds wildcards: a "contains" match would also pull in kA or kV.
-            pattern = re.compile(self._glob_to_regex(unit.group(1)), re.IGNORECASE)
-            found = {name: meta for name, meta in hmi_vars.items()
-                     if pattern.fullmatch(meta.get('units', ''))}
-        else:
-            pattern = re.compile(self._build_pattern(text), re.IGNORECASE)
-            found = {name: meta for name, meta in hmi_vars.items()
-                     if pattern.fullmatch(name)
-                     or pattern.fullmatch(meta.get('description', ''))
-                     or pattern.fullmatch(meta.get('units', ''))}
+            # variable measured in K", so the brackets direct that part of the
+            # search to the unit field alone and the match is exact unless the
+            # user adds wildcards: a "contains" match would also pull in kA or kV.
+            unit = re.compile(self._glob_to_regex(token.group(1)), re.IGNORECASE)
+            text = (text[:token.start()] + text[token.end():]).strip()
+        pattern = re.compile(self._build_pattern(text), re.IGNORECASE) if text else None
 
+        def matches(name, meta):
+            if unit is not None and not unit.fullmatch(meta.get('units', '')):
+                return False
+            if pattern is None:
+                return True
+            fields = [name, meta.get('description', '')]
+            if unit is None:
+                fields.append(meta.get('units', ''))
+            return any(pattern.fullmatch(field) for field in fields)
+
+        found = {name: meta for name, meta in hmi_vars.items() if matches(name, meta)}
         self.tree.set_model('SEARCH')
         self.tree.models['SEARCH'].data_source = self.get_current_source()
         self.tree.models['SEARCH'].load_document(self._hmi_document(found), metadata=found)
+        self._show_result_count(len(found))
 
     def search(self):
         text = self.searchbar.text()
@@ -257,6 +275,7 @@ class VariableBrowser(QWidget):
                 self.progress_bar.setStyleSheet("")
                 time.sleep(2)
                 self.tree.models['SEARCH'].load_document({})
+            self._show_result_count(self._count_variables(found))
         except Exception as e:
             logger.error(f"Exception {e} while triying to load new module")
             self.progress_bar.setStyleSheet("QProgressBar::chunk {background-color: #FF6666;}")
@@ -271,6 +290,15 @@ class VariableBrowser(QWidget):
         self.progress_bar.setValue(100)
         time.sleep(0.4)
         self.progress_bar.hide()
+
+    def _show_result_count(self, count: int):
+        self.result_label.setText(f"{count} {'entry' if count == 1 else 'entries'} found")
+
+    @classmethod
+    def _count_variables(cls, document: dict) -> int:
+        """Leaves of a nested search result, folders excluded."""
+        return sum(cls._count_variables(value) if isinstance(value, dict) else 1
+                   for value in document.values())
 
     def add_to_table(self):
         indexes = self.tree.selectedIndexes()
