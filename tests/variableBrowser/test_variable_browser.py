@@ -432,12 +432,36 @@ class HmiVariablesTest:
         tree.doubleClicked.emit(top)
         assert tree.isExpanded(top) and tree.isExpanded(nested)
 
-    def test_search_result_double_click_expands_the_whole_branch(self, fast_browser,
-                                                                 mock_data_source):
+    def test_search_result_double_click_expands_one_level_only(self, fast_browser,
+                                                               mock_data_source):
+        # Recursing a search result fires one blocking get_var_fields query
+        # per variable under the node, which is what made a double-click on a
+        # large result hang the browser; it opens a single level instead.
         mock_data_source.source_type = DS_CODAC_TYPE
         search_model = fast_browser.tree.models['SEARCH']
         search_model.data_source = mock_data_source
         search_model.load_document({'TOP': {'MID': {'LEAF': ''}}})
+        fast_browser.tree.set_model('SEARCH')
+
+        tree = fast_browser.tree
+        model = tree.model()
+        top = model.index(0, 0)
+        nested = model.index(0, 0, top)
+        tree.expand_branch(top)
+        assert tree.isExpanded(top)
+        assert not tree.isExpanded(nested)
+
+    def test_synoptic_search_result_double_click_still_expands_the_branch(
+            self, fast_browser, mock_data_source):
+        # The synoptic exception: its metadata is already local, so the full
+        # unfold costs nothing and stays the double-click behaviour even when
+        # the tree shown is a search result.
+        mock_data_source.source_type = DS_CODAC_TYPE
+        search_model = fast_browser.tree.models['SEARCH']
+        search_model.data_source = mock_data_source
+        search_model.load_document({'TOP': {'MID': {'LEAF': ''}}},
+                                   metadata={'LEAF': {'units': 'K', 'description': 'd',
+                                                      'type': 'double'}})
         fast_browser.tree.set_model('SEARCH')
 
         tree = fast_browser.tree
