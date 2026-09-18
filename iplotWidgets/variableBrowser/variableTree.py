@@ -26,7 +26,7 @@ class VariableTree(FontScaledView, QTreeView):
         self.setDragDropMode(QAbstractItemView.InternalMove)
         self.expanded.connect(self.expand)
         # Double-click expands the whole branch instead of toggling one
-        # level, so search results do not have to be unfolded by hand.
+        # level, wherever the data is already local (see expand_branch).
         self.setExpandsOnDoubleClick(False)
         self.doubleClicked.connect(self.toggle_branch)
         self.load_model(AppDataAccess.da.default_ds)
@@ -57,31 +57,26 @@ class VariableTree(FontScaledView, QTreeView):
             self.expand_branch(index)
 
     def expand_branch(self, index):
-        """Expand a node and every descendant.
+        """Expand a node, recursively only where the data is already local.
 
-        The full walk is only done where the data is already local: Qt
-        expands a synoptic or non-CODAC document in one pass, and a CODAC
-        search result is recursed so each level still fetches its metadata.
-        The lazily loaded CODAC tree expands a single level instead —
-        recursing it would fire one blocking server query per level and per
-        child on the GUI thread."""
+        A synoptic tree carries its metadata with it (every item is marked
+        consulted by ``apply_metadata``) and a non-CODAC document is fully
+        loaded, so Qt can unfold either in one pass at no cost.
+
+        Everything else — a CODAC search result as much as the lazily loaded
+        CODAC tree — opens a single level, exactly as a single click does.
+        Expanding a level runs ``check_folder``, which fires one blocking
+        ``get_var_fields`` query per unconsulted child on the GUI thread, so
+        recursing a branch costs one server round trip per variable under it
+        and freezes the browser for as long as that takes. The user opens the
+        levels they need instead, one bounded query at a time."""
         if not index.isValid():
             return
         model = self.get_model()
         if model.synoptic or model.data_source.source_type != DS_CODAC_TYPE:
             self.expandRecursively(index)
-        elif model.search:
-            self._expand_loaded_branch(index)
         else:
             QTreeView.expand(self, index)
-
-    def _expand_loaded_branch(self, index):
-        # Going through QTreeView.expand keeps the expanded signal firing,
-        # so each level loads its metadata before its children are visited.
-        QTreeView.expand(self, index)
-        model = self.model()
-        for row in range(model.rowCount(index)):
-            self._expand_loaded_branch(model.index(row, 0, index))
 
     def load_model(self, data_source):
         ds_name = data_source.name
