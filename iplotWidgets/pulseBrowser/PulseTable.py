@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
 )
 
 from iplotDataAccess.appDataAccess import AppDataAccess
-from iplotDataAccess.dataSource import DS_IMASPY_TYPE
+from iplotWidgets.compat import DS_IMAS_TYPE
 from iplotWidgets.pulseBrowser.models.PulseTableModel import PulseTableModel
 from iplotWidgets.sizing import FontScaledView
 
@@ -73,13 +73,13 @@ class PulseTable(FontScaledView, QTableView):
 
         self.adjust_columns(AppDataAccess.da.default_ds)
 
-    def _is_imaspy(self):
+    def _is_imas(self):
         model = self.models.get(self.current_model_name)
-        return model is not None and model.data_source.source_type == DS_IMASPY_TYPE
+        return model is not None and model.data_source.source_type == DS_IMAS_TYPE
     
-    def _apply_imaspy_column_settings(self):
+    def _apply_imas_column_settings(self):
         """Hide the dashboard_link column and attach link delegate to uuid."""
-        if not self._is_imaspy():
+        if not self._is_imas():
             return
         df = self.get_current_model().dataframe
         if df is None or df.empty:
@@ -91,15 +91,15 @@ class PulseTable(FontScaledView, QTableView):
 
     def _on_cell_clicked(self, index):
         """ Open URL in browser when clicked """
-        if not index.isValid() or not self._is_imaspy():
+        if not index.isValid() or not self._is_imas():
             return
         if self.get_current_model().dataframe.columns[index.column()] == _UUID_COL:
             url = index.data(Qt.ItemDataRole.UserRole)
             QDesktopServices.openUrl(QUrl(url))
 
     def mouseMoveEvent(self, event):
-        """ Change cursor to pointing hand if hovering over a UUID link in IMASPY data source """
-        if self._is_imaspy():
+        """ Change cursor to pointing hand if hovering over a UUID link in IMAS data source """
+        if self._is_imas():
             index = self.indexAt(event.pos())
             if index.isValid() and self.get_current_model().dataframe.columns[index.column()] == _UUID_COL:
                 self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
@@ -129,16 +129,16 @@ class PulseTable(FontScaledView, QTableView):
 
         self.current_model_name = ds_name
         self.setModel(self.models[ds_name])
-        if data_source.source_type == DS_IMASPY_TYPE:
-            self._apply_imaspy_column_settings()
+        if data_source.source_type == DS_IMAS_TYPE:
+            self._apply_imas_column_settings()
 
     def set_model(self, ds_name):
         if ds_name in self.models:
             self.current_model_name = ds_name
             self.setModel(self.models[ds_name])
             model = self.models[ds_name]
-            if model.data_source.source_type == DS_IMASPY_TYPE:
-                self._apply_imaspy_column_settings()
+            if model.data_source.source_type == DS_IMAS_TYPE:
+                self._apply_imas_column_settings()
 
     def get_current_model(self) -> PulseTableModel:
         return self.models[self.current_model_name]

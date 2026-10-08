@@ -297,7 +297,7 @@ class ImasLoadTest(unittest.TestCase):
     """
 
     def setUp(self):
-        from iplotDataAccess.dataSource import DS_IMASPY_TYPE
+        from iplotWidgets.compat import DS_IMAS_TYPE
 
         self.df = pd.DataFrame({'pulse': ['1', '2'], 'run': ['1', '2']})
         self.fetch_count = 0
@@ -307,7 +307,7 @@ class ImasLoadTest(unittest.TestCase):
             return self.df
 
         self.ds = SimpleNamespace(
-            source_type=DS_IMASPY_TYPE,
+            source_type=DS_IMAS_TYPE,
             get_pulses_df=fake_fetch,
         )
 
