@@ -5,8 +5,8 @@ from types import SimpleNamespace
 
 from PySide6.QtCore import Qt
 
-from iplotDataAccess.dataSource import (DS_CODAC_TYPE, DS_CSV_TYPE,
-                                        DS_IMAS_TYPE)
+from iplotDataAccess.dataSource import DS_CODAC_TYPE, DS_CSV_TYPE
+from iplotWidgets.compat import DS_IMAS_TYPE
 from iplotWidgets.variableBrowser.models.mtJsonModel import (ImasVarItem,
                                                              UdaVarItem,
                                                              VariableModel)

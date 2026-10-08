@@ -3,7 +3,8 @@ from PySide6 import QtGui
 from PySide6.QtCore import QAbstractItemModel, QModelIndex, QObject, Qt, QSize, QPersistentModelIndex
 import re
 
-from iplotDataAccess.dataSource import DataSource, DS_IMAS_TYPE, DS_CODAC_TYPE, DS_CSV_TYPE
+from iplotDataAccess.dataSource import DataSource, DS_CODAC_TYPE, DS_CSV_TYPE
+from iplotWidgets.compat import DS_IMAS_TYPE
 
 
 class VariableModel(QAbstractItemModel):

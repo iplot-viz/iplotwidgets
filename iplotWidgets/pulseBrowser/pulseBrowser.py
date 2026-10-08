@@ -11,7 +11,7 @@ from iplotWidgets.pulseBrowser.PulseTable import PulseTable
 from iplotWidgets.sizing import clamp_to_screen
 from iplotLogging import setupLogger as setupLog
 from iplotDataAccess.appDataAccess import AppDataAccess
-from iplotDataAccess.dataSource import DS_IMAS_TYPE
+from iplotWidgets.compat import DS_IMAS_TYPE
 
 logger = setupLog.get_logger(__name__)
 

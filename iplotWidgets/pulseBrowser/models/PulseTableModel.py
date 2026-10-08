@@ -8,7 +8,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor
 from pandas.core.interchange.dataframe_protocol import DataFrame
 from iplotLogging import setupLogger as setupLog
-from iplotDataAccess.dataSource import DataSource, DS_IMAS_TYPE
+from iplotDataAccess.dataSource import DataSource
+from iplotWidgets.compat import DS_IMAS_TYPE
 
 logger = setupLog.get_logger(__name__)
 

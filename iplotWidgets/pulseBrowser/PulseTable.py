@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
 )
 
 from iplotDataAccess.appDataAccess import AppDataAccess
-from iplotDataAccess.dataSource import DS_IMAS_TYPE
+from iplotWidgets.compat import DS_IMAS_TYPE
 from iplotWidgets.pulseBrowser.models.PulseTableModel import PulseTableModel
 from iplotWidgets.sizing import FontScaledView
 
