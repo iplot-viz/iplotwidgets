@@ -203,7 +203,8 @@ class VariableBrowser(QWidget):
 
     def search_hmi(self, text):
         """Filter the HMI variable list locally: unlike the server search, the
-        pattern is also matched against the description and the unit."""
+        pattern is also matched against the description and the unit. Each word
+        of the text is a pattern, and the variables found match them all."""
         hmi_vars = self.get_hmi_vars()
         unit = None
         token = self._UNIT_TOKEN.search(text)
@@ -214,17 +215,15 @@ class VariableBrowser(QWidget):
             # user adds wildcards: a "contains" match would also pull in kA or kV.
             unit = re.compile(self._glob_to_regex(token.group(1)), re.IGNORECASE)
             text = (text[:token.start()] + text[token.end():]).strip()
-        pattern = re.compile(self._build_pattern(text), re.IGNORECASE) if text else None
+        patterns = [re.compile(self._build_pattern(word), re.IGNORECASE) for word in text.split()]
 
         def matches(name, meta):
             if unit is not None and not unit.fullmatch(meta.get('units', '')):
                 return False
-            if pattern is None:
-                return True
             fields = [name, meta.get('description', '')]
             if unit is None:
                 fields.append(meta.get('units', ''))
-            return any(pattern.fullmatch(field) for field in fields)
+            return all(any(pattern.fullmatch(field) for field in fields) for pattern in patterns)
 
         found = {name: meta for name, meta in hmi_vars.items() if matches(name, meta)}
         self.tree.set_model('SEARCH')
