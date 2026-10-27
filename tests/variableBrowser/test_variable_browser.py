@@ -345,6 +345,31 @@ class HmiVariablesTest:
         assert hmi_browser.tree.models['SEARCH'].root_item.children == []
         assert hmi_browser.result_label.text() == '0 entries found'
 
+    def _found(self, browser, text):
+        browser.searchbar.setText(text)
+        browser.search()
+        return [item.key for item in browser.tree.models['SEARCH'].root_item.children]
+
+    def test_several_words_find_the_variables_that_have_them_all(self, hmi_browser):
+        hmi_browser.hmi_check.setChecked(True)
+        hmi_browser.type_search.setCurrentText('contains')
+
+        assert self._found(hmi_browser, 'temperature magnet') == ['VAR-B:TT01']
+        assert self._found(hmi_browser, 'magnet  current') == []
+
+    def test_one_word_can_be_in_the_name_and_another_in_the_description(self, hmi_browser):
+        hmi_browser.hmi_check.setChecked(True)
+        hmi_browser.type_search.setCurrentText('contains')
+
+        assert self._found(hmi_browser, 'pressure VAR-K') == ['VAR-K:PT01']
+
+    def test_several_words_combine_with_a_unit(self, hmi_browser):
+        hmi_browser.hmi_check.setChecked(True)
+        hmi_browser.type_search.setCurrentText('contains')
+
+        assert self._found(hmi_browser, 'pressure tank [bar]') == ['VAR-K:PT01']
+        assert self._found(hmi_browser, 'pressure tank [K]') == []
+
     def test_uncheck_returns_to_source_model(self, hmi_browser, mock_data_source):
         hmi_browser.hmi_check.setChecked(True)
         hmi_browser.hmi_check.setChecked(False)
