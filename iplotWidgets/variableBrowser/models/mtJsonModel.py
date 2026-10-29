@@ -4,7 +4,7 @@ from PySide6.QtCore import QAbstractItemModel, QModelIndex, QObject, Qt, QSize, 
 import re
 
 from iplotDataAccess.dataSource import DataSource, DS_CODAC_TYPE, DS_CSV_TYPE
-from iplotWidgets.compat import DS_IMAS_TYPE
+from iplotWidgets.compat import DS_IMAS_TYPE, DS_PYUDA_TYPE
 
 
 class VariableModel(QAbstractItemModel):
@@ -67,7 +67,7 @@ class VariableModel(QAbstractItemModel):
 
         if self.data_source.source_type == DS_IMAS_TYPE:
             self.root_item = ImasVarItem.load(document)
-        elif self.data_source.source_type == DS_CODAC_TYPE or self.data_source.source_type == DS_CSV_TYPE:
+        elif self.data_source.source_type in (DS_CODAC_TYPE, DS_CSV_TYPE, DS_PYUDA_TYPE):
             self.root_item = UdaVarItem.load(document, UdaVarItem(data_type="folder"), consulted=True)
 
         if metadata:
