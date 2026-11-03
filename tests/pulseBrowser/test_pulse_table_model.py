@@ -274,6 +274,35 @@ class SelectedColumnTest(unittest.TestCase):
         self.assertEqual(self.model.columnCount(), 0)
 
 
+class SortTextColumnTest(unittest.TestCase):
+    """A pulse id is ``<location>:<category>/<number>``: sorting by it
+    compares the number as a number (XX/2 before XX/10) and the rest as
+    text, as before."""
+
+    def setUp(self):
+        self.model = _make_model()
+        self.model.load_document(pd.DataFrame({
+            'Pulse': ['ITER:CAT/10', 'ITER:CAT/2', 'ITER:CAT-X/1', 'ITER:CAT/100', 'ITER:CAT/1'],
+            'Status': ['completed', 'aborted', 'terminated', 'failed', 'completed'],
+        }))
+
+    def _sort(self, column: str, order: Qt.SortOrder) -> None:
+        self.model.sort(self.model.dataframe.columns.get_loc(column), order)
+
+    def test_pulse_numbers_are_compared_as_numbers(self):
+        self._sort('Pulse', Qt.SortOrder.AscendingOrder)
+        self.assertEqual(list(self.model.dataframe['Pulse']),
+                         ['ITER:CAT-X/1', 'ITER:CAT/1', 'ITER:CAT/2', 'ITER:CAT/10', 'ITER:CAT/100'])
+        self._sort('Pulse', Qt.SortOrder.DescendingOrder)
+        self.assertEqual(list(self.model.dataframe['Pulse']),
+                         ['ITER:CAT/100', 'ITER:CAT/10', 'ITER:CAT/2', 'ITER:CAT/1', 'ITER:CAT-X/1'])
+
+    def test_other_text_keeps_its_plain_order(self):
+        self._sort('Status', Qt.SortOrder.AscendingOrder)
+        self.assertEqual(list(self.model.dataframe['Status']),
+                         ['aborted', 'completed', 'completed', 'failed', 'terminated'])
+
+
 class LoadNonImasPathTest(unittest.TestCase):
     """The non-IMAS branch of ``load`` simply delegates to the data
     source and feeds the result through ``load_document``."""
