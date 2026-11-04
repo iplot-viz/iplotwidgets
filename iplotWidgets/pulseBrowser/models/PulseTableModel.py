@@ -18,6 +18,17 @@ logger = setupLog.get_logger(__name__)
 SELECTED_COL = 'Selected'
 
 
+def _text_sort_key(value) -> tuple:
+    """Plain text order, except that a number after the last '/', as in a
+    pulse id ``<location>:<category>/<number>``, is compared as a number:
+    XX/2 before XX/10."""
+    text = str(value)
+    head, sep, number = text.rpartition('/')
+    if sep and number.isdecimal():
+        return head + sep, int(number)
+    return text, -1
+
+
 class PulseTableModel(QAbstractTableModel):
     layoutChanged = Signal()
 
@@ -276,7 +287,7 @@ class PulseTableModel(QAbstractTableModel):
     def sort(self, column: int, order: Qt.SortOrder = Qt.SortOrder.AscendingOrder) -> None:
         """
         Sort the model by the given column index and order.
-        Numeric strings sorted numerically, others lexicographically.
+        Numeric strings sorted numerically, others as text (see _text_sort_key).
         """
         col_name = self.dataframe.columns[column]
         ascending = (order == Qt.SortOrder.AscendingOrder)
@@ -301,7 +312,7 @@ class PulseTableModel(QAbstractTableModel):
         if numeric_key.notna().any():
             self.dataframe['_sort_key'] = numeric_key
         else:
-            self.dataframe['_sort_key'] = self.dataframe[col_name].astype(str)
+            self.dataframe['_sort_key'] = self.dataframe[col_name].map(_text_sort_key)
 
         self.dataframe.sort_values(
             by=['_sort_key'],
