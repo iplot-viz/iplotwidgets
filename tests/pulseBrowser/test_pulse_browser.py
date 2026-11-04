@@ -118,6 +118,117 @@ class PulseBrowserSearchExtendedTest:
         assert fast_pulse_browser.table.models['SEARCH'].rowCount() > 0
 
 
+class PulseBrowserTimeWindowTest:
+    """*Started between* keeps the pulses that started in a time window, with
+    or without a pattern. Its times are those of the pulses, in UTC, as the
+    table shows them; the pulses of some data sources have none."""
+
+    @staticmethod
+    def _pulses(*starts):
+        import pandas as pd
+        started = pd.to_datetime(list(starts))
+        return pd.DataFrame({
+            'Pulse': [f'ITER:foo/{k}' for k in range(len(starts))],
+            'Time From': started,
+            'Time To': started + pd.Timedelta(minutes=5),
+            'Duration': [pd.Timedelta(minutes=5)] * len(starts),
+            'Status': ['completed'] * len(starts),
+            'Description': [''] * len(starts),
+        })
+
+    @staticmethod
+    def _window(browser, start, end):
+        from PySide6.QtCore import QDateTime, Qt
+        browser.started_between.setChecked(True)
+        browser.started_from.setDateTime(QDateTime.fromString(start, Qt.DateFormat.ISODate))
+        browser.started_to.setDateTime(QDateTime.fromString(end, Qt.DateFormat.ISODate))
+
+    @staticmethod
+    def _found(browser):
+        return list(browser.table.models['SEARCH'].dataframe['Pulse'])
+
+    def test_a_search_keeps_the_pulses_that_started_in_the_time_window(self, fast_pulse_browser,
+                                                                        mock_data_source):
+        mock_data_source.search_pulses_df = lambda text: self._pulses(
+            '2026-04-01T09:30', '2026-04-01T10:30', '2026-04-01T11:30', '2026-04-01T12:30')
+        fast_pulse_browser.searchbar.setText('ITER:foo')
+        self._window(fast_pulse_browser, '2026-04-01T10:00:00', '2026-04-01T12:00:00')
+
+        fast_pulse_browser.search()
+
+        # Latest first, as the table sorts them.
+        assert self._found(fast_pulse_browser) == ['ITER:foo/2', 'ITER:foo/1']
+
+    def test_without_a_pattern_the_time_window_looks_through_every_pulse(self, fast_pulse_browser,
+                                                                          mock_data_source):
+        searched = []
+        mock_data_source.search_pulses_df = searched.append
+        mock_data_source.get_pulses_df = lambda **kw: self._pulses('2026-04-01T09:30', '2026-04-01T10:30')
+        self._window(fast_pulse_browser, '2026-04-01T10:00:00', '2026-04-01T12:00:00')
+
+        fast_pulse_browser.search()
+
+        assert searched == []
+        assert self._found(fast_pulse_browser) == ['ITER:foo/1']
+
+    def test_unchecked_the_time_window_leaves_the_search_alone(self, fast_pulse_browser, mock_data_source):
+        mock_data_source.search_pulses_df = lambda text: self._pulses('2026-04-01T09:30', '2026-04-01T12:30')
+        fast_pulse_browser.searchbar.setText('ITER:foo')
+        self._window(fast_pulse_browser, '2026-04-01T10:00:00', '2026-04-01T12:00:00')
+
+        fast_pulse_browser.started_between.setChecked(False)
+        fast_pulse_browser.search()
+
+        assert not fast_pulse_browser.started_from.isEnabled()
+        assert not fast_pulse_browser.started_to.isEnabled()
+        assert self._found(fast_pulse_browser) == ['ITER:foo/1', 'ITER:foo/0']
+
+    def test_return_in_a_time_of_the_window_searches_instead_of_adding_the_pulse_selected(
+            self, fast_pulse_browser, mock_data_source):
+        from PySide6.QtCore import Qt
+        from PySide6.QtTest import QTest
+        mock_data_source.get_pulses_df = lambda **kw: self._pulses('2026-04-01T09:30', '2026-04-01T10:30')
+        fast_pulse_browser.refresh()
+        fast_pulse_browser.flag = 'time_range'
+        added = []
+        fast_pulse_browser.srch_finish.connect(added.append)
+        self._window(fast_pulse_browser, '2026-04-01T10:00:00', '2026-04-01T12:00:00')
+        fast_pulse_browser.table.selectRow(1)
+        fast_pulse_browser.show()
+        try:
+            # Keys go to the field that has the focus, in the window that is active.
+            fast_pulse_browser.activateWindow()
+            assert QTest.qWaitForWindowActive(fast_pulse_browser)
+            fast_pulse_browser.started_to.setFocus()
+            QTest.keyClick(fast_pulse_browser.started_to, Qt.Key.Key_Return)
+        finally:
+            fast_pulse_browser.hide()
+
+        assert added == []
+        assert self._found(fast_pulse_browser) == ['ITER:foo/1']
+
+    def test_the_time_window_is_only_for_pulses_that_tell_when_they_started(self, fast_pulse_browser):
+        import pandas as pd
+        from types import SimpleNamespace
+        no_times = pd.DataFrame({'pulseId': ['local:a/1'], 'Status': ['completed']})
+        csv = SimpleNamespace(name='no_times', source_type='csv', get_pulses_df=lambda **kw: no_times,
+                              search_pulses_df=lambda text: no_times)
+        fast_pulse_browser.started_between.setChecked(True)
+        assert fast_pulse_browser.started_between.isEnabled()
+
+        fast_pulse_browser.sources_combo.addItem(csv.name, userData=csv)
+        fast_pulse_browser.sources_combo.setCurrentText(csv.name)
+        fast_pulse_browser.searchbar.setText('local')
+        fast_pulse_browser.search()
+
+        assert not fast_pulse_browser.started_between.isEnabled()
+        assert not fast_pulse_browser.started_from.isEnabled()
+        assert list(fast_pulse_browser.table.models['SEARCH'].dataframe['pulseId']) == ['local:a/1']
+        fast_pulse_browser.sources_combo.setCurrentText('csv_test')
+        assert fast_pulse_browser.started_between.isEnabled()
+        assert fast_pulse_browser.started_from.isEnabled()
+
+
 class PulseBrowserSelectedPulsesTest:
     """``set_selected_pulses`` is how MINT tells the browser which pulses
     are already in use. The flag must reach the model on screen, the
@@ -269,6 +380,7 @@ TestPulseBrowserSearch = PulseBrowserSearchTest
 TestPulseBrowserPagination = PulseBrowserPaginationTest
 TestPulseBrowserRefresh = PulseBrowserRefreshTest
 TestPulseBrowserSearchExtended = PulseBrowserSearchExtendedTest
+TestPulseBrowserTimeWindow = PulseBrowserTimeWindowTest
 TestPulseBrowserSelectedPulses = PulseBrowserSelectedPulsesTest
 TestPulseBrowserPaginationButtons = PulseBrowserPaginationButtonsTest
 TestPulseBrowserPageLinks = PulseBrowserPageLinksTest

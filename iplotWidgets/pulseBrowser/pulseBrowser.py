@@ -3,8 +3,8 @@ import time
 import pandas as pd
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QComboBox, QHBoxLayout, QVBoxLayout, \
-    QProgressBar, QLabel
-from PySide6.QtCore import Qt, Signal
+    QProgressBar, QLabel, QCheckBox, QDateTimeEdit
+from PySide6.QtCore import Qt, Signal, QDateTime
 
 from iplotDataAccess.dataAccess import DataSource
 from iplotWidgets.pulseBrowser.PulseTable import PulseTable
@@ -64,6 +64,28 @@ class PulseBrowser(QWidget):
 
             self.search_btn = QPushButton('Search')
             self.search_btn.clicked.connect(self.search)
+            # The search can keep the pulses that started in a time window, given as the table shows their
+            # times: UTC.
+            self.started_between = QCheckBox('Started between')
+            now = QDateTime.currentDateTimeUtc()
+            now = QDateTime(now.date(), now.time())
+            self.started_from = QDateTimeEdit(now.addDays(-1))
+            self.started_to = QDateTimeEdit(now)
+            started_and = QLabel('and')
+            for edit in (self.started_from, self.started_to):
+                edit.setDisplayFormat("yyyy-MM-ddThh:mm:ss")
+                edit.setCalendarPopup(True)
+            for widget in (self.started_from, started_and, self.started_to):
+                widget.setEnabled(False)
+                self.started_between.toggled.connect(widget.setEnabled)
+            # Some data sources do not tell when their pulses started.
+            self.started_window = QWidget()
+            started_layout = QHBoxLayout(self.started_window)
+            started_layout.setContentsMargins(0, 0, 0, 0)
+            started_layout.addWidget(self.started_between)
+            started_layout.addWidget(self.started_from)
+            started_layout.addWidget(started_and)
+            started_layout.addWidget(self.started_to)
             self.refresh_btn = QPushButton('Refresh')
             self.refresh_btn.clicked.connect(self.refresh)
 
@@ -92,8 +114,10 @@ class PulseBrowser(QWidget):
             top_h_layout.addWidget(self.refresh_btn)
             top_h_layout.addWidget(self.searchbar)
             top_h_layout.addWidget(self.search_btn)
+            self.offer_time_window()
             top_v_layout = QVBoxLayout()
             top_v_layout.addLayout(top_h_layout)
+            top_v_layout.addWidget(self.started_window, alignment=Qt.AlignmentFlag.AlignLeft)
             top_v_layout.addWidget(self.progress_bar)
 
             bot_v_layout = QVBoxLayout()
@@ -146,6 +170,17 @@ class PulseBrowser(QWidget):
         self.table.adjust_columns(new_source)
         self.update_page_size()
         self.update_page_label()
+        self.offer_time_window()
+
+    def offer_time_window(self):
+        """Let the search keep the pulses that started in a time window if the data source tells when they did."""
+        self.started_window.setEnabled('Time From' in self.table.get_current_model().dataframe.columns)
+
+    def time_window(self):
+        """The start and the end of the time window of the search, as the times of the pulses; None without one."""
+        if not (self.started_between.isEnabled() and self.started_between.isChecked()):
+            return None
+        return tuple(pd.Timestamp(edit.dateTime().toPython()) for edit in (self.started_from, self.started_to))
 
     def update_display(self):
         text = self.searchbar.text()
@@ -273,7 +308,8 @@ class PulseBrowser(QWidget):
 
     def search(self):
         text = self.searchbar.text()
-        if text == '':
+        window = self.time_window()
+        if text == '' and window is None:
             return
         self.search_btn.setEnabled(False)
         self.progress_bar.show()
@@ -282,7 +318,10 @@ class PulseBrowser(QWidget):
         time.sleep(0.4)
 
         data_source = self.get_current_source()
-        found = data_source.search_pulses_df(text)
+        # Without a pattern, those of the time window are looked for among all the pulses.
+        found = data_source.search_pulses_df(text) if text else data_source.get_pulses_df()
+        if window is not None:
+            found = found[found['Time From'].between(*window)]
         columns = found.columns
         search_model = self.table.models['SEARCH']
         # If the type of data source has changed and a search is made, the SEARCH MODEL dataframe must be updated
@@ -354,6 +393,10 @@ class PulseBrowser(QWidget):
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Return:
+            # In a time of the time window, as in the search bar.
+            if self.started_from.hasFocus() or self.started_to.hasFocus():
+                self.search()
+                return
             self.add_pulse()
 
     def info_pulse(self, index):
