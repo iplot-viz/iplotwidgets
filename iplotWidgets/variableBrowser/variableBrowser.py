@@ -204,7 +204,8 @@ class VariableBrowser(QWidget):
     def search_hmi(self, text):
         """Filter the HMI variable list locally: unlike the server search, the
         pattern is also matched against the description and the unit. Each word
-        of the text is a pattern, and the variables found match them all."""
+        of the text is a pattern, and the variables found match them all; a
+        word in capitals is matched as written."""
         hmi_vars = self.get_hmi_vars()
         unit = None
         token = self._UNIT_TOKEN.search(text)
@@ -215,7 +216,11 @@ class VariableBrowser(QWidget):
             # user adds wildcards: a "contains" match would also pull in kA or kV.
             unit = re.compile(self._glob_to_regex(token.group(1)), re.IGNORECASE)
             text = (text[:token.start()] + text[token.end():]).strip()
-        patterns = [re.compile(self._build_pattern(word), re.IGNORECASE) for word in text.split()]
+        # A word in capitals is matched as written: "VAC" then picks the vacuum
+        # system from the names but not a "vacuum" in a description, and an
+        # acronym written in a description is still found.
+        patterns = [re.compile(self._build_pattern(word), 0 if word.isupper() else re.IGNORECASE)
+                    for word in text.split()]
 
         def matches(name, meta):
             if unit is not None and not unit.fullmatch(meta.get('units', '')):
