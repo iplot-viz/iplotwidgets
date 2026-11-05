@@ -26,7 +26,8 @@ dependencies = [
     "iplotLogging >= 1.2.2",
     "iplotDataAccess >= 1.5.2.post1",
     "iplotProcessing >= 1.2.1",
-    "PySide6 >= 6.9.3",
+    # 6.12.0 makes Python older than 3.12 abort on Linux
+    "PySide6 >= 6.9.3, < 6.12",
 ]
 dynamic = ["version"]
 
