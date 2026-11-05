@@ -38,6 +38,21 @@ class AddRowTest(unittest.TestCase):
         self.assertEqual(value, 'temperature')
 
 
+class DragTest(unittest.TestCase):
+    def test_the_rows_of_the_table_can_be_dragged_but_nothing_dropped_on_it(self):
+        from PySide6.QtWidgets import QAbstractItemView, QApplication
+        from iplotWidgets.variableBrowser.variableTable import VariableTable
+        app = QApplication.instance() or QApplication([])
+        table = VariableTable()
+        self.addCleanup(table.deleteLater)
+        table.model.add_row(['csv', 'temperature'])
+
+        self.assertTrue(table.model.flags(table.model.index(0, 1)) & Qt.ItemFlag.ItemIsDragEnabled)
+        self.assertTrue(table.dragEnabled())
+        self.assertEqual(table.dragDropMode(), QAbstractItemView.DragDropMode.DragOnly)
+        self.assertEqual(table.model.supportedDragActions(), Qt.DropAction.CopyAction)
+
+
 class RemoveRowsTest(unittest.TestCase):
     def setUp(self):
         self.model = TableModel()
