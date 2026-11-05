@@ -78,6 +78,11 @@ class VariableTable(FontScaledView, QTableView):
         self.setModel(self.model)
         self.apply_font_metrics()
 
+    def mousePressEvent(self, event):
+        # A drag starts only from selected rows, so a press elsewhere still selects by dragging.
+        self.setDragEnabled(self.selectionModel().isSelected(self.indexAt(event.position().toPoint())))
+        super().mousePressEvent(event)
+
     def remove_from_table(self):
         index = self.selectedIndexes()
         rows = list({ix.row() for ix in index})

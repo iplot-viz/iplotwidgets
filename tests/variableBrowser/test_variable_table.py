@@ -39,18 +39,52 @@ class AddRowTest(unittest.TestCase):
 
 
 class DragTest(unittest.TestCase):
-    def test_the_rows_of_the_table_can_be_dragged_but_nothing_dropped_on_it(self):
-        from PySide6.QtWidgets import QAbstractItemView, QApplication
-        from iplotWidgets.variableBrowser.variableTable import VariableTable
-        app = QApplication.instance() or QApplication([])
-        table = VariableTable()
-        self.addCleanup(table.deleteLater)
-        table.model.add_row(['csv', 'temperature'])
+    """The rows selected can be dragged out of the table; a press on another row selects as before, also by dragging."""
 
-        self.assertTrue(table.model.flags(table.model.index(0, 1)) & Qt.ItemFlag.ItemIsDragEnabled)
-        self.assertTrue(table.dragEnabled())
-        self.assertEqual(table.dragDropMode(), QAbstractItemView.DragDropMode.DragOnly)
-        self.assertEqual(table.model.supportedDragActions(), Qt.DropAction.CopyAction)
+    def setUp(self):
+        from PySide6.QtWidgets import QApplication
+        from iplotWidgets.variableBrowser.variableTable import VariableTable
+        self.app = QApplication.instance() or QApplication([])
+        self.table = VariableTable()
+        self.addCleanup(self.table.deleteLater)
+        for name in ('a', 'b', 'c', 'd'):
+            self.table.model.add_row(['csv', name])
+        self.table.resize(400, 300)
+        self.table.show()
+        self.app.processEvents()
+        self.drags = []
+        self.table.startDrag = self.drags.append
+
+    def _press_and_move(self, from_row: int, to_row: int) -> list:
+        """The rows selected after a press on a row and a move down to another with the button held."""
+        from PySide6.QtCore import QEvent, QPointF
+        from PySide6.QtGui import QMouseEvent
+        from PySide6.QtTest import QTest
+        viewport = self.table.viewport()
+        first = self.table.visualRect(self.table.model.index(from_row, 1)).center()
+        last = self.table.visualRect(self.table.model.index(to_row, 1)).center()
+        QTest.mousePress(viewport, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, first)
+        for step in range(1, 11):
+            point = QPointF(first.x(), first.y() + (last.y() - first.y()) * step / 10)
+            self.app.sendEvent(viewport, QMouseEvent(QEvent.Type.MouseMove, point, viewport.mapToGlobal(point),
+                                                     Qt.MouseButton.NoButton, Qt.MouseButton.LeftButton,
+                                                     Qt.KeyboardModifier.NoModifier))
+        QTest.mouseRelease(viewport, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, last)
+        return sorted({index.row() for index in self.table.selectionModel().selectedIndexes()})
+
+    def test_a_press_on_a_row_not_selected_and_a_move_select_the_rows_passed(self):
+        self.assertEqual(self._press_and_move(0, 2), [0, 1, 2])
+        self.assertEqual(self.drags, [])
+
+    def test_the_rows_selected_are_dragged_and_nothing_can_be_dropped_on_the_table(self):
+        self.table.selectRow(1)
+
+        self._press_and_move(1, 3)
+
+        self.assertEqual(len(self.drags), 1)
+        self.assertTrue(self.table.model.flags(self.table.model.index(0, 1)) & Qt.ItemFlag.ItemIsDragEnabled)
+        self.assertFalse(self.table.acceptDrops())
+        self.assertEqual(self.table.model.supportedDragActions(), Qt.DropAction.CopyAction)
 
 
 class RemoveRowsTest(unittest.TestCase):
