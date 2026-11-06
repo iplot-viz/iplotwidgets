@@ -5,11 +5,12 @@ from typing import Any, Union, List
 import pandas as pd
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelIndex, Signal
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtGui import QBrush, QColor, QGuiApplication, QPalette
 from pandas.core.interchange.dataframe_protocol import DataFrame
 from iplotLogging import setupLogger as setupLog
 from iplotDataAccess.dataSource import DataSource
 from iplotWidgets.compat import DS_IMAS_TYPE
+from iplotWidgets.palette import blend, is_dark
 
 logger = setupLog.get_logger(__name__)
 
@@ -76,6 +77,10 @@ class PulseTableModel(QAbstractTableModel):
                 return self.format_duration(value)
             return value
         if role == Qt.ItemDataRole.BackgroundRole and self._is_selected(row):
+            if is_dark():
+                # The same yellow, a quarter of the way from the base of a dark palette.
+                return QBrush(blend(QGuiApplication.palette().color(QPalette.ColorRole.Base),
+                                    self._selected_background.color(), 0.25))
             return self._selected_background
         if self.data_source.source_type == DS_IMAS_TYPE:
             if role == Qt.ItemDataRole.UserRole:

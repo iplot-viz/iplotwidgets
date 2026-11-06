@@ -1,5 +1,5 @@
 from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QColor, QCursor, QDesktopServices, QKeySequence
+from PySide6.QtGui import QColor, QCursor, QDesktopServices, QKeySequence, QPalette
 from PySide6.QtWidgets import (
     QApplication, QAbstractItemView, QHeaderView,
     QStyle, QStyleOptionViewItem, QStyledItemDelegate, QTableView,
@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
 
 from iplotDataAccess.appDataAccess import AppDataAccess
 from iplotWidgets.compat import DS_IMAS_TYPE
+from iplotWidgets.palette import is_dark
 from iplotWidgets.pulseBrowser.models.PulseTableModel import PulseTableModel
 from iplotWidgets.sizing import FontScaledView
 
@@ -33,7 +34,8 @@ class _LinkDelegate(QStyledItemDelegate):
 
         text = str(index.data(Qt.ItemDataRole.DisplayRole) or "")
         painter.save()
-        painter.setPen(_LINK_COLOR)
+        # The link colour of a dark palette, where the blue of a light one has too little contrast.
+        painter.setPen(opt.palette.color(QPalette.ColorRole.Link) if is_dark(opt.palette) else _LINK_COLOR)
         font = painter.font()
         font.setUnderline(True)
         painter.setFont(font)
