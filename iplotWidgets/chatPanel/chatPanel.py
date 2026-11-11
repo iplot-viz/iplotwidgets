@@ -1,9 +1,11 @@
 import math
 
-from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import (QAbstractAnimation, QEasingCurve, QEvent, QPoint, QPointF, QPropertyAnimation, QRect,
+                            QRectF, QSize, Qt, Signal)
 from PySide6.QtGui import QColor, QFontDatabase, QPainter, QPalette, QTextOption
-from PySide6.QtWidgets import (QCheckBox, QFrame, QHBoxLayout, QLabel, QLayout, QPlainTextEdit, QPushButton,
-                               QScrollArea, QSizePolicy, QTextEdit, QToolButton, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QCheckBox, QFrame, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QLayout,
+                               QPlainTextEdit, QPushButton, QScrollArea, QSizePolicy, QTextEdit, QToolButton,
+                               QVBoxLayout, QWidget)
 
 from iplotWidgets.chatPanel.assistantIcon import SVG_HEAD, AssistantIcon, svg_icon
 from iplotWidgets.sizing import scaled_px
@@ -13,6 +15,8 @@ BUBBLE_SHARE = 0.85
 #: Options beyond this many get a scroll area instead of growing the card.
 MAX_VISIBLE_OPTIONS = 8
 MAX_INPUT_LINES = 5
+#: How long a new message, card or note takes to fade in.
+FADE_IN_MS = 200
 
 _ROLE = QPalette.ColorRole
 
@@ -774,7 +778,31 @@ class ChatPanel(QWidget):
         self._last_kind = kind
         self._items_layout.insertWidget(self._items_layout.indexOf(self._busy_row), row)
         self._items.append(row)
+        self._fade_in(row)
         self._update_chips()
+
+    def _fade_in(self, widget: QWidget):
+        """Fade a new part in. Besides marking it as new, that paints it a few times over: a remote desktop
+        that loses an update now and then (NoMachine mirroring a desktop) still gets the last ones."""
+        # Hidden, it shows whole when the panel opens. Inside a part still fading in, the effects would nest.
+        if not self.isVisible():
+            return
+        part = widget
+        while part is not None and part is not self:
+            if part.graphicsEffect() is not None:
+                return
+            part = part.parentWidget()
+        effect = QGraphicsOpacityEffect(widget)
+        effect.setOpacity(0.0)
+        widget.setGraphicsEffect(effect)
+        fade = QPropertyAnimation(effect, b'opacity', widget)
+        fade.setDuration(FADE_IN_MS)
+        fade.setStartValue(0.0)
+        fade.setEndValue(1.0)
+        fade.setEasingCurve(QEasingCurve.Type.OutCubic)
+        # The effect draws through an off-screen picture: once faded in, the part paints directly again.
+        fade.finished.connect(lambda *_: widget.setGraphicsEffect(None))
+        fade.start(QAbstractAnimation.DeletionPolicy.DeleteWhenStopped)
 
     def _text(self, text: str, **kwargs) -> _TextView:
         view = _TextView(text, **kwargs)
@@ -917,8 +945,11 @@ class ChatPanel(QWidget):
             for key, button in card.buttons.items():
                 button.setEnabled(key in enabled)
         if note is not None:
+            new = bool(note) and note != card.note.text()
             card.note.setText(note)
             card.note.setVisible(bool(note))
+            if new:
+                self._fade_in(card.note)
         active = any(button.isEnabled() for button in card.buttons.values())
         for box in card.options:
             box.setEnabled(active)

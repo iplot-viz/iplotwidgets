@@ -6,10 +6,11 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFontDatabase, QPalette
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QPushButton, QTextEdit, QToolButton, QWidget
+from PySide6.QtWidgets import QGraphicsOpacityEffect, QPushButton, QTextEdit, QToolButton, QWidget
 
 from iplotWidgets.chatPanel import AssistantIcon, ChatPanel, assistant_icon
 from iplotWidgets.chatPanel import assistantIcon as icon_module
+from iplotWidgets.chatPanel.chatPanel import FADE_IN_MS
 
 
 @pytest.fixture
@@ -448,6 +449,61 @@ class TestHostStyle:
         assert panel._scheme.text.name() == '#e6e8eb'
         image = panel.grab().toImage()
         assert image.pixelColor(panel.width() // 2, panel.height() // 2).lightnessF() < 0.3
+
+
+def _wait(predicate, timeout=2.0):
+    end = time.monotonic() + timeout
+    while not predicate() and time.monotonic() < end:
+        QTest.qWait(20)
+    return predicate()
+
+
+def _faded_in(widgets):
+    return all(widget.graphicsEffect() is None for widget in widgets)
+
+
+class TestFadeIn:
+
+    def test_a_new_message_or_card_fades_in_then_paints_directly(self, panel):
+        panel.add_user_message('smooth it')
+        panel.add_card('Smoothing', ['a line'], [('apply', 'Apply')])
+        for row in panel._items:
+            effect = row.graphicsEffect()
+            assert isinstance(effect, QGraphicsOpacityEffect) and effect.opacity() == 0.0, 'starts unseen'
+        assert _wait(lambda: _faded_in(panel._items))
+
+    def test_a_hidden_panel_shows_new_parts_whole(self, qapp):
+        panel = ChatPanel()
+        panel.add_assistant_message('hello')
+        panel.add_card('Smoothing', ['a line'], [('apply', 'Apply')])
+        assert _faded_in(panel._items)
+        panel.deleteLater()
+
+    def test_a_note_fades_in_when_it_says_something_new(self, panel):
+        card = panel.add_card('Smoothing', ['a line'], [('apply', 'Apply'), ('undo', 'Undo')])
+        assert _wait(lambda: _faded_in(panel._items))
+        note = panel._cards[card].note
+        panel.set_card_state(card, enabled=['undo'], note='Done.')
+        assert isinstance(note.graphicsEffect(), QGraphicsOpacityEffect)
+        assert _wait(lambda: _faded_in([note]))
+        panel.set_card_state(card, enabled=['undo'], note='Done.')
+        assert note.graphicsEffect() is None, 'the same words are not new'
+        panel.set_card_state(card, enabled=['apply'], note='')
+        assert note.graphicsEffect() is None and not note.isVisible()
+
+    def test_a_note_inside_a_card_still_fading_in_fades_with_it(self, panel):
+        card = panel.add_card('Smoothing', ['a line'], [('apply', 'Apply')])
+        panel.set_card_state(card, note='Tick at least one.')
+        assert panel._cards[card].note.graphicsEffect() is None, 'effects inside effects are drawn twice'
+        assert _wait(lambda: _faded_in(panel._items))
+
+    def test_clearing_while_fading_in_is_quiet(self, panel, monkeypatch):
+        errors = []
+        monkeypatch.setattr('sys.excepthook', lambda *args: errors.append(args))
+        panel.add_assistant_message('hello')
+        panel.clear()
+        QTest.qWait(FADE_IN_MS + 150)
+        assert errors == [] and panel.message_count() == 0
 
 
 class TestWindow:
