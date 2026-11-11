@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (QCheckBox, QFrame, QGraphicsOpacityEffect, QHBoxL
                                QPlainTextEdit, QPushButton, QScrollArea, QSizePolicy, QTextEdit, QToolButton,
                                QVBoxLayout, QWidget)
 
-from iplotWidgets.chatPanel.assistantIcon import SVG_HEAD, AssistantIcon, svg_icon
+from iplotWidgets.chatPanel.assistantIcon import SVG_HEAD, AssistantIcon, assistant_icon, svg_icon
 from iplotWidgets.sizing import scaled_px
 
 #: Share of the conversation width a bubble may take.
@@ -457,6 +457,29 @@ class _IconButton(QPushButton):
             self._apply_size()
 
 
+class _TitleIcon(QLabel):
+    """The assistant mark before the title, drawn in the text colour like the host's button for the panel."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        _plain(self)
+        self._color = self.palette().color(_ROLE.WindowText)
+        self._draw()
+
+    def apply_scheme(self, scheme: Scheme):
+        self._color = scheme.text
+        self._draw()
+
+    def _draw(self):
+        size = scaled_px(self, 16)
+        self.setPixmap(assistant_icon(self._color, size).pixmap(QSize(size, size)))
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.FontChange:
+            self._draw()
+
+
 class _HeaderButton(QToolButton):
     def __init__(self, svg: str, tip: str, parent=None):
         super().__init__(parent)
@@ -527,7 +550,7 @@ class ChatPanel(QWidget):
         self._cards = {}
         self._last_kind = None
         self._busy = False
-        self._stoppable = False
+        self._preparing = False
         self._input_enabled = True
         self._last_message = ''
         self._stick_to_bottom = True
@@ -544,6 +567,8 @@ class ChatPanel(QWidget):
 
         self._header = _plain(QWidget())
         self._header.setObjectName('chatHeader')
+        self._title_icon = _TitleIcon()
+        self._title_icon.setObjectName('chatTitleIcon')
         self._title = _plain(QLabel(title))
         self._title.setObjectName('chatTitle')
         font = self._title.font()
@@ -557,6 +582,8 @@ class ChatPanel(QWidget):
         header = QHBoxLayout(self._header)
         header.setContentsMargins(pad + 2, gap, gap, gap)
         header.setSpacing(scaled_px(self, 2))
+        header.addWidget(self._title_icon)
+        header.addSpacing(scaled_px(self, 4))
         header.addWidget(self._title, 1)
         header.addWidget(self.pop_button)
         header.addWidget(self.close_button)
@@ -588,6 +615,7 @@ class ChatPanel(QWidget):
         self._chips.setObjectName('chatChips')
         self._chips_layout = _FlowLayout(self._chips, spacing=gap)
         self._chips.setVisible(False)
+        self._progress = self._build_progress_row()
 
         self.input = _InputEdit()
         self.input.setObjectName('chatInput')
@@ -619,6 +647,7 @@ class ChatPanel(QWidget):
         body.setContentsMargins(pad, 0, pad, pad)
         body.setSpacing(gap)
         body.addWidget(self._scroll, 1)
+        body.addWidget(self._progress)
         body.addWidget(self._chips)
         body.addWidget(self._composer)
         body.addWidget(self._status)
@@ -645,6 +674,22 @@ class ChatPanel(QWidget):
         row.setVisible(False)
         return row
 
+    def _build_progress_row(self):
+        row = _plain(QWidget())
+        row.setObjectName('chatProgress')
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(scaled_px(self, 2), 0, 0, 0)
+        layout.setSpacing(scaled_px(self, 6))
+        self._progress_icon = AssistantIcon(size=20)
+        self._progress_label = _HintLabel()
+        self._progress_label.setObjectName('chatProgressText')
+        self._progress_label.setWordWrap(True)
+        self._progress_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        layout.addWidget(self._progress_icon, 0, Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(self._progress_label, 1, Qt.AlignmentFlag.AlignVCenter)
+        row.setVisible(False)
+        return row
+
     def _restyle(self):
         """Work the colours out again from the host's, and hand them to every part."""
         # Setting the style sheet re-polishes the panel, which comes back here.
@@ -665,7 +710,7 @@ class ChatPanel(QWidget):
             key = scheme.key()
             if key != self._scheme_key:
                 self._scheme_key = key
-                for kind in (_TextView, _InputEdit, _HintLabel, _IconButton, _HeaderButton):
+                for kind in (_TextView, _InputEdit, _HintLabel, _IconButton, _HeaderButton, _TitleIcon):
                     for widget in self.findChildren(kind):
                         widget.apply_scheme(scheme)
                 for icon in self.findChildren(AssistantIcon):
@@ -983,18 +1028,26 @@ class ChatPanel(QWidget):
             self._scroll.verticalScrollBar().setValue(high)
 
 
-    def set_busy(self, busy: bool, text: str = '', can_stop: bool = True):
-        """The working row with ``text``. ``can_stop`` False (e.g. while starting up) offers no Stop."""
+    def set_busy(self, busy: bool, text: str = ''):
+        """The working row with ``text``, while the host works on a message; Stop asks it to stop."""
         busy = bool(busy)
         if busy:
             self._stick_to_bottom = self._is_near_bottom()
         self._busy = busy
-        self._stoppable = busy and can_stop
         self._busy_label.setText(text if busy else '')
         self._busy_icon.set_active(busy)
         self._busy_row.setVisible(busy)
-        self.send_button.setVisible(not self._stoppable)
-        self.stop_button.setVisible(self._stoppable)
+        self.send_button.setVisible(not busy)
+        self.stop_button.setVisible(busy)
+        self._update_chips()
+
+    def set_progress(self, text: str):
+        """What the host does before it can answer (e.g. starting up), said above the input box, where the
+        suggestions come once it is done. Empty hides it."""
+        self._preparing = bool(text)
+        self._progress_label.setText(text)
+        self._progress_icon.set_active(self._preparing)
+        self._progress.setVisible(self._preparing)
         self._update_chips()
 
     def set_status(self, text: str):
@@ -1030,7 +1083,7 @@ class ChatPanel(QWidget):
     def _update_chips(self):
         # Hidden while a click on one could not be sent.
         self._chips.setVisible(bool(self._suggestions) and (self._suggest_anytime or not self._items)
-                               and not self._busy and self._input_enabled)
+                               and not self._busy and not self._preparing and self._input_enabled)
 
     def _emit_message(self, text: str):
         if self._busy or not self._input_enabled:
@@ -1059,5 +1112,5 @@ class ChatPanel(QWidget):
             self.input.setTextCursor(cursor)
 
     def _on_escape(self):
-        if self._stoppable:
+        if self._busy:
             self.stopRequested.emit()

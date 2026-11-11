@@ -127,12 +127,22 @@ class TestBusy:
         QTest.keyClick(panel.input, Qt.Key.Key_Escape)
         assert len(rec.calls) == 2
 
-    def test_busy_without_stop_offers_none(self, panel):
+    def test_progress_shows_where_the_suggestions_go_and_offers_no_stop(self, panel, qapp):
         rec = Recorder(panel.stopRequested)
-        panel.set_busy(True, 'Loading the model…', can_stop=False)
+        panel.set_suggestions(['Hello'])
+        panel.set_progress('Loading the model…')
+        qapp.processEvents()
+        assert panel._progress.isVisible() and panel._progress_label.text() == 'Loading the model…'
+        assert panel._progress_icon.is_animating()
+        assert not panel._busy_row.isVisible(), 'not in the conversation'
+        assert panel._progress.geometry().bottom() < panel._composer.geometry().top(), 'just above the input box'
+        assert not panel._chips.isVisible()
         assert panel.stop_button.isHidden() and not panel.send_button.isHidden()
         QTest.keyClick(panel.input, Qt.Key.Key_Escape)
         assert rec.calls == []
+        panel.set_progress('')
+        assert not panel._progress.isVisible() and not panel._progress_icon.is_animating()
+        assert panel._chips.isVisible(), 'the suggestions take its place'
 
     def test_escape_when_idle_does_nothing(self, panel):
         rec = Recorder(panel.stopRequested)
@@ -507,6 +517,14 @@ class TestFadeIn:
 
 
 class TestWindow:
+
+    def test_the_title_has_the_assistant_mark_in_the_text_colour(self, panel, host_style):
+        icon = panel._title_icon
+        assert icon.isVisible() and icon.geometry().right() < panel._title.geometry().left()
+        dark = icon.pixmap().toImage()
+        host_style('QWidget { background-color: #2b2d31; color: #e6e8eb; }')
+        light = icon.pixmap().toImage()
+        assert dark != light, 'redrawn with the theme'
 
     def test_title_and_close(self, panel):
         closed = Recorder(panel.closeRequested)
