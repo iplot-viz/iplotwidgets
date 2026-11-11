@@ -76,6 +76,10 @@ class Scheme:
         self.accent = color(_ROLE.Highlight)
         self.on_accent = color(_ROLE.HighlightedText)
 
+    def key(self) -> tuple:
+        """Changes when any colour of the scheme does."""
+        return self.text.rgba(), self.background.rgba(), self.accent.rgba(), self.on_accent.rgba()
+
 
 def _plain(widget: QWidget) -> QWidget:
     widget.setProperty('chatPlain', True)
@@ -176,6 +180,8 @@ class _TextView(QTextEdit):
         self._text = text
         self._heights = {}
         self._measure = None
+        self._font_key = None
+        self._colors = None
         self.on_accent = on_accent
         self.setObjectName(object_name)
         self.setReadOnly(True)
@@ -208,14 +214,17 @@ class _TextView(QTextEdit):
             text, selection, selected = scheme.on_accent, scheme.on_accent, scheme.accent
         else:
             text, selection, selected = scheme.text, scheme.accent, scheme.on_accent
+        colors = (f'color: {text.name()}; selection-background-color: {selection.name()}; '
+                  f'selection-color: {selected.name()};')
+        if colors == self._colors:
+            return
+        self._colors = colors
         palette = QPalette(self.palette())
         palette.setColor(_ROLE.Text, text)
         palette.setColor(_ROLE.Highlight, selection)
         palette.setColor(_ROLE.HighlightedText, selected)
         self.setPalette(palette)
         # The palette alone would lose to a host style sheet's colours.
-        colors = (f'color: {text.name()}; selection-background-color: {selection.name()}; '
-                  f'selection-color: {selected.name()};')
         style = _PLAIN_TEXT.format(kind='QTextEdit', colors=colors)
         if style != self.styleSheet():
             self.setStyleSheet(style)
@@ -253,11 +262,16 @@ class _TextView(QTextEdit):
 
     def changeEvent(self, event):
         super().changeEvent(event)
-        # A new font or style changes the lines without always changing the width.
+        # A new font changes the lines without always changing the width. A host style sheet sends
+        # a style change on every edit, mostly with the same font: those are measured again only if
+        # the font did change (the text's own style sheet keeps padding and border at zero).
         if event.type() in (QEvent.Type.FontChange, QEvent.Type.StyleChange):
-            self._heights.clear()
-            self._measure = None
-            self.updateGeometry()
+            key = self.font().key()
+            if key != self._font_key:
+                self._font_key = key
+                self._heights.clear()
+                self._measure = None
+                self.updateGeometry()
 
     def wheelEvent(self, event):
         # Nothing to scroll here; let the conversation scroll instead.
@@ -518,6 +532,7 @@ class ChatPanel(QWidget):
         self._detached = False
         self._restyling = False
         self._scheme = Scheme(self.palette())
+        self._scheme_key = None
 
         self.setMinimumWidth(scaled_px(self, 280))
         gap = scaled_px(self, 6)
@@ -641,13 +656,17 @@ class ChatPanel(QWidget):
                                         background=scheme.background.name(), box=scaled_px(self, 13))
             if style != self.styleSheet():
                 self.setStyleSheet(style)
-            for kind in (_TextView, _InputEdit, _HintLabel, _IconButton, _HeaderButton):
-                for widget in self.findChildren(kind):
-                    widget.apply_scheme(scheme)
-            for icon in self.findChildren(AssistantIcon):
-                icon.set_colors(scheme.bubble, scheme.accent)
-            for widget in self.findChildren(QWidget):
-                widget.update()
+            # A host style sheet sends this to the panel on every change: the parts get the colours
+            # only when they changed (parts made later take them when made).
+            key = scheme.key()
+            if key != self._scheme_key:
+                self._scheme_key = key
+                for kind in (_TextView, _InputEdit, _HintLabel, _IconButton, _HeaderButton):
+                    for widget in self.findChildren(kind):
+                        widget.apply_scheme(scheme)
+                for icon in self.findChildren(AssistantIcon):
+                    icon.set_colors(scheme.bubble, scheme.accent)
+            # Repainting the panel repaints every part inside it.
             self.update()
         finally:
             self._restyling = False
