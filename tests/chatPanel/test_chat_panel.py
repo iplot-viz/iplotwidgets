@@ -126,6 +126,13 @@ class TestBusy:
         QTest.keyClick(panel.input, Qt.Key.Key_Escape)
         assert len(rec.calls) == 2
 
+    def test_busy_without_stop_offers_none(self, panel):
+        rec = Recorder(panel.stopRequested)
+        panel.set_busy(True, 'Loading the model…', can_stop=False)
+        assert panel.stop_button.isHidden() and not panel.send_button.isHidden()
+        QTest.keyClick(panel.input, Qt.Key.Key_Escape)
+        assert rec.calls == []
+
     def test_escape_when_idle_does_nothing(self, panel):
         rec = Recorder(panel.stopRequested)
         QTest.keyClick(panel.input, Qt.Key.Key_Escape)

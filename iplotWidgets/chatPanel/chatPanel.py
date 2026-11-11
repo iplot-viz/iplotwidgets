@@ -509,6 +509,7 @@ class ChatPanel(QWidget):
         self._cards = {}
         self._last_kind = None
         self._busy = False
+        self._stoppable = False
         self._input_enabled = True
         self._last_message = ''
         self._stick_to_bottom = True
@@ -932,16 +933,18 @@ class ChatPanel(QWidget):
             self._scroll.verticalScrollBar().setValue(high)
 
 
-    def set_busy(self, busy: bool, text: str = ''):
+    def set_busy(self, busy: bool, text: str = '', can_stop: bool = True):
+        """The working row with ``text``. ``can_stop`` False (e.g. while starting up) offers no Stop."""
         busy = bool(busy)
         if busy:
             self._stick_to_bottom = self._is_near_bottom()
         self._busy = busy
+        self._stoppable = busy and can_stop
         self._busy_label.setText(text if busy else '')
         self._busy_icon.set_active(busy)
         self._busy_row.setVisible(busy)
-        self.send_button.setVisible(not busy)
-        self.stop_button.setVisible(busy)
+        self.send_button.setVisible(not self._stoppable)
+        self.stop_button.setVisible(self._stoppable)
         self._update_chips()
 
     def set_status(self, text: str):
@@ -1006,5 +1009,5 @@ class ChatPanel(QWidget):
             self.input.setTextCursor(cursor)
 
     def _on_escape(self):
-        if self._busy:
+        if self._stoppable:
             self.stopRequested.emit()
