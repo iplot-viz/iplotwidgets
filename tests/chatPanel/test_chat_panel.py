@@ -262,6 +262,14 @@ class TestSuggestions:
         assert empty.calls == []
         assert panel.input.toPlainText() == ''
 
+    def test_new_suggestions_replace_the_old_ones_at_once(self, panel, qapp):
+        panel.set_suggestions(['Smooth MLT1000-AA-IN over 10 s'])
+        qapp.processEvents()
+        panel.add_user_message('Smooth MLT1000-AA-IN over 10 s')
+        panel.set_suggestions(['The same for VOL3600-XI'], anytime=True)
+        shown = [c.text() for c in panel._chips.findChildren(QPushButton) if c.isVisibleTo(panel)]
+        assert shown == ['The same for VOL3600-XI'], 'the old one would show under it until deleted'
+
     def test_chips_hide_while_a_click_could_not_be_sent(self, panel, qapp):
         panel.set_suggestions(['Add a ruler'])
         qapp.processEvents()
@@ -393,6 +401,36 @@ class TestHostStyle:
             document = view.document()
             document.setTextWidth(view.viewport().width())
             assert view.viewport().height() >= document.size().height() - 0.5, view.toPlainText()
+
+    def test_an_answer_is_laid_out_right_at_first_paint(self, qapp, host_style):
+        # An answer and its card arrive at once; it must look right before any click relays it out.
+        from PySide6.QtGui import QFont
+        from PySide6.QtWidgets import QLabel, QSplitter
+        from iplotWidgets.chatPanel.chatPanel import _Surface
+        host_style('QTextEdit, QPlainTextEdit { border: 1px solid #888; padding: 2px 4px; }')
+        splitter = QSplitter()
+        splitter.addWidget(QLabel('canvas'))
+        panel = ChatPanel()
+        splitter.addWidget(panel)
+        splitter.resize(800, 700)
+        splitter.setSizes([440, 360])
+        splitter.show()
+        qapp.processEvents()
+        splitter.setFont(QFont(splitter.font().family(), 13))  # the host scales its fonts after building
+        qapp.processEvents()
+        panel.add_user_message('Smooth MLT1000-AA-IN over 10 s')
+        panel.add_assistant_message("Here's what I'd change. Nothing happens until you click Apply, and Undo puts "
+                                    "it back.")
+        panel.add_card('Smoothing', ['CRYO-CH-MM-CRST:MLT1000-AA-IN, smoothed with a 10 s average, in the top plot'],
+                       [('apply', 'Apply'), ('undo', 'Undo')], detail='uniform_filter1d(x, 3)')
+        qapp.processEvents()
+        for surface in panel.findChildren(_Surface):
+            for child in surface.findChildren(QWidget, options=Qt.FindChildOption.FindDirectChildrenOnly):
+                if child.isVisibleTo(surface):
+                    assert child.geometry().bottom() < surface.height(), surface.objectName()
+        rows = panel._items
+        assert all(a.geometry().bottom() < b.geometry().top() for a, b in zip(rows, rows[1:]))
+        splitter.deleteLater()
 
     def test_colours_follow_a_dark_theme_set_only_by_style_sheet(self, panel, qapp, host_style):
         # A theme style sheet sets window and text colours, not Base: the panel must not stay white.

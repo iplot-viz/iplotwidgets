@@ -162,15 +162,20 @@ class _FlowLayout(QLayout):
 
 
 class _TextView(QTextEdit):
-    """Read-only, selectable plain text that wraps anywhere and sizes itself to its content.
+    """Read-only, selectable plain text that wraps anywhere and gives its height for any width.
 
-    A ``QLabel`` only breaks at word boundaries, so a long variable name would widen the panel.
+    A ``QLabel`` only breaks at word boundaries, so a long variable name would widen the panel. The
+    height comes through heightForWidth, so the layouts place it in one pass: a height set once the
+    width is known needs a second pass up through every layout, which some platforms only run on the
+    next input event.
     """
 
     def __init__(self, text: str, parent=None, bold: bool = False, mono: bool = False, object_name='chatText',
                  on_accent: bool = False):
         super().__init__(parent)
         self._text = text
+        self._heights = {}
+        self._measure = None
         self.on_accent = on_accent
         self.setObjectName(object_name)
         self.setReadOnly(True)
@@ -183,7 +188,9 @@ class _TextView(QTextEdit):
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.viewport().setAutoFillBackground(False)
         self.document().setDocumentMargin(0)
-        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        policy = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        policy.setHeightForWidth(True)
+        self.setSizePolicy(policy)
         if mono:
             font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
             if self.font().pointSizeF() > 0:
@@ -194,7 +201,6 @@ class _TextView(QTextEdit):
             font.setBold(True)
             self.setFont(font)
         self.setPlainText(text)
-        self.setFixedHeight(self._height_for(scaled_px(self, 200)))
 
     def apply_scheme(self, scheme: Scheme):
         # Text on the accent colour swaps the roles, selection included, or a selection would vanish.
@@ -214,37 +220,43 @@ class _TextView(QTextEdit):
         if style != self.styleSheet():
             self.setStyleSheet(style)
 
-    def _height_for(self, width: int) -> int:
-        doc = self.document()
-        doc.setTextWidth(max(width, 1))
-        return int(math.ceil(doc.size().height()))
+    def hasHeightForWidth(self):
+        return True
 
-    def _refit(self):
-        # Whatever a style still puts around the viewport comes on top of the text.
-        chrome = max(0, self.height() - self.viewport().height())
-        height = self._height_for(self.viewport().width()) + chrome
-        if height != self.height():
-            self.setFixedHeight(height)
+    def heightForWidth(self, width: int) -> int:
+        height = self._heights.get(width)
+        if height is None:
+            # Measured on a copy, so the text on screen is not laid out again for every width asked.
+            if self._measure is None:
+                self._measure = self.document().clone(self)
+                self._measure.setDocumentMargin(self.document().documentMargin())  # clone() leaves it out
+            # Whatever a style still puts around the viewport comes on top of the text.
+            chrome_w = max(0, self.width() - self.viewport().width())
+            chrome_h = max(0, self.height() - self.viewport().height())
+            self._measure.setTextWidth(max(width - chrome_w, 1))
+            height = int(math.ceil(self._measure.size().height())) + chrome_h
+            if len(self._heights) > 32:  # dragging a splitter asks for many widths
+                self._heights.clear()
+            self._heights[width] = height
+        return height
 
     def natural_width(self) -> int:
         metrics = self.fontMetrics()
         return max((metrics.horizontalAdvance(line) for line in self._text.split('\n')), default=0) + 4
 
     def sizeHint(self):
-        return QSize(self.natural_width(), self.height())
+        width = self.natural_width()
+        return QSize(width, self.heightForWidth(width))
 
     def minimumSizeHint(self):
-        return QSize(scaled_px(self, 24), self.height())
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self._refit()
+        return QSize(scaled_px(self, 24), self.fontMetrics().lineSpacing())
 
     def changeEvent(self, event):
         super().changeEvent(event)
         # A new font or style changes the lines without always changing the width.
         if event.type() in (QEvent.Type.FontChange, QEvent.Type.StyleChange):
-            self._refit()
+            self._heights.clear()
+            self._measure = None
             self.updateGeometry()
 
     def wheelEvent(self, event):
@@ -950,8 +962,11 @@ class ChatPanel(QWidget):
         self._suggestions = list(texts)
         self._suggest_anytime = bool(anytime)
         while self._chips_layout.count():
-            item = self._chips_layout.takeAt(0)
-            item.widget().deleteLater()
+            old = self._chips_layout.takeAt(0).widget()
+            # Gone now, not when the event loop deletes it: it would show under the new ones until then.
+            old.hide()
+            old.setParent(None)
+            old.deleteLater()
         for text in self._suggestions:
             chip = _Chip(text, self._scheme)
             chip.setObjectName('chatChip')

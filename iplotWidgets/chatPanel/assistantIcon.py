@@ -19,6 +19,8 @@ _SMALL_SVG = SVG_HEAD + '<path d="' + SMALL_STAR + '" fill="{color}"/></svg>'
 #: Star opacity range and period of the twinkle while the assistant works.
 MIN_OPACITY = 0.35
 PERIOD_MS = 1200
+#: Repaints per period: smooth to the eye, and cheap on a remote display (about 20 a second).
+STEPS = 24
 
 
 @lru_cache(maxsize=64)
@@ -114,8 +116,10 @@ class AssistantIcon(QWidget):
         return self._breath.state() == QAbstractAnimation.State.Running
 
     def _on_phase(self, phase):
-        self._phase = float(phase)
-        self.update()
+        phase = int(float(phase) * STEPS) / STEPS
+        if phase != self._phase:
+            self._phase = phase
+            self.update()
 
     @staticmethod
     def _opacity(phase: float) -> float:
