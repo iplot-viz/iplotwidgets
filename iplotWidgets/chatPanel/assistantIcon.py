@@ -8,21 +8,20 @@ from PySide6.QtWidgets import QSizePolicy, QWidget
 
 from iplotWidgets.sizing import scaled_px
 
-COIL_PATH = 'M8 4h3.5c5.2 0 8.5 3.6 8.5 8s-3.3 8-8.5 8h-1.1L8 22.5V20z'
-SPARK_PATH = ('M14 8.5c.4 2.4 1.1 3.1 3.5 3.5-2.4.4-3.1 1.1-3.5 3.5-.4-2.4-1.1-3.1-3.5-3.5 '
-              '2.4-.4 3.1-1.1 3.5-3.5z')
+# The sparkles most tools now use to mark AI features: a large four-point star and a small one.
+LARGE_STAR = 'M10 4.5Q11.3 11.7 18.5 13Q11.3 14.3 10 21.5Q8.7 14.3 1.5 13Q8.7 11.7 10 4.5z'
+SMALL_STAR = 'M18.5 2Q19 5 22 5.5Q19 6 18.5 9Q18 6 15 5.5Q18 5 18.5 2z'
 
-_SVG_HEAD = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
-_COIL_SVG = (_SVG_HEAD + '<path d="' + COIL_PATH + '" fill="none" stroke="{color}" stroke-width="1.8" '
-             'stroke-linejoin="round" stroke-linecap="round"/></svg>')
-_SPARK_SVG = _SVG_HEAD + '<path d="' + SPARK_PATH + '" fill="{color}"/></svg>'
+SVG_HEAD = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
+_LARGE_SVG = SVG_HEAD + '<path d="' + LARGE_STAR + '" fill="{color}"/></svg>'
+_SMALL_SVG = SVG_HEAD + '<path d="' + SMALL_STAR + '" fill="{color}"/></svg>'
 
-#: Spark opacity range and period of the "breathing" animation.
-MIN_OPACITY = 0.4
+#: Star opacity range and period of the twinkle while the assistant works.
+MIN_OPACITY = 0.35
 PERIOD_MS = 1200
 
 
-@lru_cache(maxsize=32)
+@lru_cache(maxsize=64)
 def _cached_renderer(template: str, rgba: int):
     # Parsing the SVG on every frame of the animation would be wasted work: one renderer per colour.
     color = QColor.fromRgba(rgba)
@@ -33,19 +32,8 @@ def _cached_renderer(template: str, rgba: int):
     return QSvgRenderer(svg.encode('utf-8'))
 
 
-def paint_assistant_icon(painter: QPainter, rect: QRectF, coil: QColor, spark: QColor,
-                         spark_opacity: float = 1.0):
-    """Draw the coil and the spark inside ``rect`` (the 24x24 viewBox scaled to fit)."""
-    painter.save()
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    _cached_renderer(_COIL_SVG, coil.rgba()).render(painter, rect)
-    painter.setOpacity(painter.opacity() * spark_opacity)
-    _cached_renderer(_SPARK_SVG, spark.rgba()).render(painter, rect)
-    painter.restore()
-
-
-def assistant_icon(color, size: int = 24) -> QIcon:
-    """An icon for a toolbar button. ``color`` is normally the palette text colour."""
+def svg_icon(template: str, color, size: int = 24) -> QIcon:
+    """An icon drawn from an SVG ``template`` with a ``{color}`` field, sharp at the screen's pixel ratio."""
     color = QColor(color)
     screen = QGuiApplication.primaryScreen()
     ratio = max(1.0, screen.devicePixelRatio()) if screen is not None else 1.0
@@ -53,21 +41,41 @@ def assistant_icon(color, size: int = 24) -> QIcon:
     pixmap.setDevicePixelRatio(ratio)
     pixmap.fill(Qt.GlobalColor.transparent)
     painter = QPainter(pixmap)
-    paint_assistant_icon(painter, QRectF(0, 0, size, size), color, color)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    _cached_renderer(template, color.rgba()).render(painter, QRectF(0, 0, size, size))
     painter.end()
     return QIcon(pixmap)
 
 
+def paint_assistant_icon(painter: QPainter, rect: QRectF, color: QColor, large_opacity: float = 1.0,
+                         small_opacity: float = 1.0):
+    """Draw the two stars inside ``rect`` (the 24x24 viewBox scaled to fit)."""
+    painter.save()
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    base = painter.opacity()
+    painter.setOpacity(base * large_opacity)
+    _cached_renderer(_LARGE_SVG, color.rgba()).render(painter, rect)
+    painter.setOpacity(base * small_opacity)
+    _cached_renderer(_SMALL_SVG, color.rgba()).render(painter, rect)
+    painter.restore()
+
+
+def assistant_icon(color, size: int = 24) -> QIcon:
+    """An icon for a toolbar button or menu entry. ``color`` is normally the palette text colour."""
+    return svg_icon(SVG_HEAD + '<path d="' + LARGE_STAR + ' ' + SMALL_STAR + '" fill="{color}"/></svg>', color, size)
+
+
 class AssistantIcon(QWidget):
-    """The assistant mark on a disc. While active its spark breathes; the coil never moves."""
+    """The assistant mark on a disc, in the highlight colour. While active its stars twinkle in turn."""
 
     def __init__(self, parent=None, size: int = 24):
         super().__init__(parent)
         self._base_size = size
         self._active = False
-        self._opacity = 1.0
-        # A linear phase from 0 to 1, looped; the opacity follows a cosine of it, so the
-        # spark is slowest at full and at dim opacity, like breathing.
+        self._phase = 0.0
+        self._colors = None
+        # A linear phase from 0 to 1, looped; each star's opacity follows a cosine of it, half a period
+        # apart, so one brightens as the other fades and both are slowest at either end.
         self._breath = QVariantAnimation(self)
         self._breath.setStartValue(0.0)
         self._breath.setEndValue(1.0)
@@ -84,6 +92,11 @@ class AssistantIcon(QWidget):
     def sizeHint(self):
         return self.size()
 
+    def set_colors(self, disc: QColor, stars: QColor):
+        """Colours to use instead of the palette's alternate base and highlight."""
+        self._colors = (QColor(disc), QColor(stars))
+        self.update()
+
     def set_active(self, active: bool):
         active = bool(active)
         if active == self._active:
@@ -94,15 +107,19 @@ class AssistantIcon(QWidget):
                 self._breath.start()
         else:
             self._breath.stop()
-            self._opacity = 1.0
+            self._phase = 0.0
         self.update()
 
     def is_animating(self) -> bool:
         return self._breath.state() == QAbstractAnimation.State.Running
 
     def _on_phase(self, phase):
-        self._opacity = MIN_OPACITY + (1.0 - MIN_OPACITY) * 0.5 * (1.0 + math.cos(2.0 * math.pi * float(phase)))
+        self._phase = float(phase)
         self.update()
+
+    @staticmethod
+    def _opacity(phase: float) -> float:
+        return MIN_OPACITY + (1.0 - MIN_OPACITY) * 0.5 * (1.0 + math.cos(2.0 * math.pi * phase))
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -121,14 +138,16 @@ class AssistantIcon(QWidget):
 
     def paintEvent(self, event):
         palette = self.palette()
-        text = palette.color(QPalette.ColorRole.Text)
-        spark = palette.color(QPalette.ColorRole.Highlight) if self._active else text
+        disc, stars = self._colors or (palette.color(QPalette.ColorRole.AlternateBase),
+                                       palette.color(QPalette.ColorRole.Highlight))
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         rect = QRectF(self.rect())
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(palette.color(QPalette.ColorRole.AlternateBase))
+        painter.setBrush(disc)
         painter.drawEllipse(rect)
-        rect = rect.adjusted(rect.width() * 0.16, rect.height() * 0.16, -rect.width() * 0.16, -rect.height() * 0.16)
-        paint_assistant_icon(painter, rect, text, spark, self._opacity if self._active else 1.0)
+        rect = rect.adjusted(rect.width() * 0.2, rect.height() * 0.2, -rect.width() * 0.2, -rect.height() * 0.2)
+        large = self._opacity(self._phase) if self._active else 1.0
+        small = self._opacity(self._phase + 0.5) if self._active else 1.0
+        paint_assistant_icon(painter, rect, stars, large, small)
         painter.end()

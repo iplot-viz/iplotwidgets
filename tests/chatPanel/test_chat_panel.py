@@ -369,6 +369,67 @@ class TestMessage:
         assert view.palette().color(QPalette.ColorRole.Text).name() == '#00ff00'
 
 
+@pytest.fixture
+def host_style(qapp):
+    """Sets an application style sheet for the test and takes it away after."""
+    def apply(sheet):
+        qapp.setStyleSheet(sheet)
+        qapp.processEvents()
+    yield apply
+    qapp.setStyleSheet('')
+
+
+class TestHostStyle:
+
+    def test_messages_fit_under_a_host_style_sheet_with_padding(self, panel, qapp, host_style):
+        # MINT's themes give every text edit a frame and padding, which used to cut the last line.
+        host_style('QTextEdit, QPlainTextEdit { border: 1px solid #888; padding: 4px 6px; }')
+        panel.add_assistant_message('I can smooth or filter signals, combine them, change the plots, add variables '
+                                    'and set the time range. What do you need?')
+        panel.add_card('Title', ['a line of the card'])
+        for _ in range(3):
+            qapp.processEvents()
+        for view in panel.findChildren(QTextEdit):
+            document = view.document()
+            document.setTextWidth(view.viewport().width())
+            assert view.viewport().height() >= document.size().height() - 0.5, view.toPlainText()
+
+    def test_colours_follow_a_dark_theme_set_only_by_style_sheet(self, panel, qapp, host_style):
+        # A theme style sheet sets window and text colours, not Base: the panel must not stay white.
+        host_style('QWidget { background-color: #2b2d31; color: #e6e8eb; }')
+        panel.add_assistant_message('hello')
+        qapp.processEvents()
+        assert panel._scheme.background.lightnessF() < 0.3
+        assert panel._scheme.text.name() == '#e6e8eb'
+        image = panel.grab().toImage()
+        assert image.pixelColor(panel.width() // 2, panel.height() // 2).lightnessF() < 0.3
+
+
+class TestWindow:
+
+    def test_title_and_close(self, panel):
+        closed = Recorder(panel.closeRequested)
+        assert panel.title() == 'Assistant'
+        panel.set_title('Helper')
+        assert panel._title.text() == 'Helper'
+        panel.close_button.click()
+        assert not panel.isVisible() and len(closed.calls) == 1
+
+    def test_the_window_button_asks_the_host_and_offers_the_way_back(self, panel):
+        assert not panel.pop_button.isVisible(), 'only when the host can move the panel'
+        panel.set_detachable(True)
+        assert panel.pop_button.isVisible()
+        asked = Recorder(panel.detachRequested)
+        panel.pop_button.click()
+        assert asked.calls == [(True,)] and not panel.is_detached(), 'the host moves it'
+        panel.set_detached(True)
+        assert 'main window' in panel.pop_button.toolTip()
+        panel.pop_button.click()
+        assert asked.calls == [(True,), (False,)]
+        panel.set_detached(False)
+        assert 'separate window' in panel.pop_button.toolTip()
+
+
 class TestAssistantIcon:
 
     def test_animation_runs_only_while_active_and_visible(self, qapp):
@@ -401,22 +462,25 @@ class TestAssistantIcon:
         icon.set_active(True)
         for _ in range(5):
             icon.grab()
-        # coil and spark: two renderers, whatever the number of frames
+        # the two stars: two renderers, whatever the number of frames
         assert icon_module._cached_renderer.cache_info().currsize == 2
         icon.deleteLater()
 
-    def test_opacity_breathes_between_bounds(self, qapp):
+    def test_stars_twinkle_in_turn_between_bounds(self, qapp):
         icon = AssistantIcon()
         icon.show()
         icon.set_active(True)
-        seen = []
+        large, small = [], []
         for _ in range(40):
             QTest.qWait(40)
-            seen.append(icon._opacity)
-        assert min(seen) >= 0.39 and max(seen) <= 1.0
-        assert max(seen) - min(seen) > 0.3
+            large.append(icon._opacity(icon._phase))
+            small.append(icon._opacity(icon._phase + 0.5))
+        assert min(large) >= icon_module.MIN_OPACITY - 0.01 and max(large) <= 1.0
+        assert max(large) - min(large) > 0.3
+        assert all(abs((a - icon_module.MIN_OPACITY) + (b - icon_module.MIN_OPACITY) - (1 - icon_module.MIN_OPACITY))
+                   < 1e-6 for a, b in zip(large, small)), 'one brightens as the other fades'
         icon.set_active(False)
-        assert icon._opacity == 1.0
+        assert icon._phase == 0.0
 
     def test_assistant_icon_is_not_null(self, qapp):
         icon = assistant_icon('#202020', size=24)
