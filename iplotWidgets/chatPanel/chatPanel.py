@@ -2,7 +2,7 @@ import math
 
 from PySide6.QtCore import (QAbstractAnimation, QEasingCurve, QEvent, QPoint, QPointF, QPropertyAnimation, QRect,
                             QRectF, QSize, Qt, Signal)
-from PySide6.QtGui import QColor, QFontDatabase, QPainter, QPalette, QTextOption
+from PySide6.QtGui import QColor, QFontDatabase, QFontMetricsF, QPainter, QPalette, QTextLayout, QTextOption
 from PySide6.QtWidgets import (QCheckBox, QFrame, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QLayout,
                                QPlainTextEdit, QPushButton, QScrollArea, QSizePolicy, QTextEdit, QToolButton,
                                QVBoxLayout, QWidget)
@@ -53,10 +53,9 @@ def mix(a: QColor, b: QColor, amount: float) -> QColor:
 
 
 class Scheme:
-    """The panel's colours, worked out from the host's window, text and selection colours.
+    """The panel's colours, mixed from the host's window, text and selection colours only.
 
-    A theme style sheet sets those and leaves the rest of the palette as the platform had it, so a
-    dark theme can come with a white Base: every other colour is mixed from these three.
+    A theme style sheet sets those and may leave Base as the platform had it (white under a dark theme).
     """
 
     def __init__(self, palette: QPalette = None):
@@ -156,26 +155,24 @@ class _FlowLayout(QLayout):
             if item.isEmpty():
                 continue
             hint = item.sizeHint()
-            # A single entry wider than the panel is cut instead of widening it.
+            # An entry wider than the panel takes its width and grows down instead of widening it.
             width = min(hint.width(), max(area.width(), 1))
+            height = item.heightForWidth(width) if item.hasHeightForWidth() else hint.height()
             if x > area.x() and x + width > area.right() + 1:
                 x = area.x()
                 y += row_height + self._gap
                 row_height = 0
             if apply:
-                item.setGeometry(QRect(QPoint(x, y), QSize(width, hint.height())))
+                item.setGeometry(QRect(QPoint(x, y), QSize(width, height)))
             x += width + self._gap
-            row_height = max(row_height, hint.height())
+            row_height = max(row_height, height)
         return y + row_height - rect.y() + m.bottom()
 
 
 class _TextView(QTextEdit):
-    """Read-only, selectable plain text that wraps anywhere and gives its height for any width.
+    """Read-only selectable text that wraps anywhere, where a QLabel breaks only at words and widens with a long name.
 
-    A ``QLabel`` only breaks at word boundaries, so a long variable name would widen the panel. The
-    height comes through heightForWidth, so the layouts place it in one pass: a height set once the
-    width is known needs a second pass up through every layout, which some platforms only run on the
-    next input event.
+    Height through heightForWidth: one layout pass; a height set afterwards needs a second, which some platforms delay.
     """
 
     def __init__(self, text: str, parent=None, bold: bool = False, mono: bool = False, object_name='chatText',
@@ -266,9 +263,8 @@ class _TextView(QTextEdit):
 
     def changeEvent(self, event):
         super().changeEvent(event)
-        # A new font changes the lines without always changing the width. A host style sheet sends
-        # a style change on every edit, mostly with the same font: those are measured again only if
-        # the font did change (the text's own style sheet keeps padding and border at zero).
+        # A new font re-wraps the lines at the same width. Host style sheets send StyleChange on every edit, so
+        # re-measure only when the font key changed (this text's own style sheet keeps padding and border at zero).
         if event.type() in (QEvent.Type.FontChange, QEvent.Type.StyleChange):
             key = self.font().key()
             if key != self._font_key:
@@ -390,8 +386,30 @@ class _HintLabel(QLabel):
             self.setStyleSheet(style)
 
 
+def _wrap_option(alignment=Qt.AlignmentFlag.AlignLeft) -> QTextOption:
+    option = QTextOption(alignment)
+    option.setWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
+    return option
+
+
+def _wrapped_height(text: str, font, width: float) -> float:
+    """Height of ``text`` wrapped to ``width`` as QPainter.drawText draws it with _wrap_option()."""
+    layout = QTextLayout(text, font)
+    layout.setTextOption(_wrap_option())
+    layout.beginLayout()
+    height = 0.0
+    while True:
+        line = layout.createLine()
+        if not line.isValid():
+            break
+        line.setLineWidth(max(width, 1.0))
+        height += line.height()
+    layout.endLayout()
+    return height
+
+
 class _Chip(QPushButton):
-    """A flat suggestion button with a rounded outline."""
+    """A flat suggestion button with a rounded outline. A text wider than the room wraps; it is never cut."""
 
     def __init__(self, text, scheme: Scheme, parent=None):
         super().__init__(text, parent)
@@ -399,14 +417,31 @@ class _Chip(QPushButton):
         self.setFlat(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFocusPolicy(Qt.FocusPolicy.TabFocus)
+        # A push button is as wide as its text at least and one line high; this one narrows to the room there
+        # is and grows by the lines its text wraps onto.
+        policy = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        policy.setHeightForWidth(True)
+        self.setSizePolicy(policy)
+
+    def _padding(self):
+        return scaled_px(self, 10), scaled_px(self, 4) + 1
 
     def sizeHint(self):
-        metrics = self.fontMetrics()
-        return QSize(metrics.horizontalAdvance(self.text()) + 2 * scaled_px(self, 10),
-                     metrics.height() + 2 * scaled_px(self, 4) + 2)
+        across, down = self._padding()
+        metrics = QFontMetricsF(self.font())
+        # Rounded up with a pixel to spare: at 150 % the text takes a fraction more than its whole-pixel width.
+        return QSize(math.ceil(metrics.horizontalAdvance(self.text())) + 2 * across + 1,
+                     math.ceil(metrics.height()) + 2 * down)
 
     def minimumSizeHint(self):
         return QSize(scaled_px(self, 24), self.sizeHint().height())
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        across, down = self._padding()
+        return math.ceil(_wrapped_height(self.text(), self.font(), width - 2 * across)) + 2 * down
 
     def paintEvent(self, event):
         scheme = self._scheme
@@ -416,11 +451,13 @@ class _Chip(QPushButton):
         hot = self.underMouse() or self.hasFocus()
         painter.setBrush(scheme.bubble if self.underMouse() else Qt.BrushStyle.NoBrush)
         painter.setPen(scheme.accent if hot else scheme.line)
-        painter.drawRoundedRect(rect, rect.height() / 2, rect.height() / 2)
+        # The corners of a one-line chip, also when it wraps onto more lines.
+        radius = min(rect.height(), self.sizeHint().height()) / 2
+        painter.drawRoundedRect(rect, radius, radius)
         painter.setPen(scheme.text)
-        text = self.fontMetrics().elidedText(self.text(), Qt.TextElideMode.ElideRight,
-                                             self.width() - 2 * scaled_px(self, 10))
-        painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, text)
+        across, down = self._padding()
+        painter.drawText(QRectF(self.rect()).adjusted(across, down, -across, -down), self.text(),
+                         _wrap_option(Qt.AlignmentFlag.AlignCenter))
         painter.end()
 
 
@@ -526,11 +563,7 @@ class _Card:
 
 
 class ChatPanel(QWidget):
-    """A conversation view with an input box. It knows nothing about who answers.
-
-    The header holds the title, a close button and, when the host can move the panel, a button
-    that asks for a window of its own and back.
-    """
+    """A conversation view with an input box; it knows nothing about who answers."""
 
     messageSubmitted = Signal(str)
     cardActionTriggered = Signal(int, str, list)
@@ -593,8 +626,12 @@ class ChatPanel(QWidget):
         self._items_layout = QVBoxLayout(self._content)
         self._items_layout.setContentsMargins(0, gap, scaled_px(self, 4), gap)
         self._items_layout.setSpacing(gap)
+        # Room above the messages: none, except while preparing with no messages yet (see _place_progress).
+        self._items_layout.addStretch(0)
         self._busy_row = self._build_busy_row()
         self._items_layout.addWidget(self._busy_row)
+        self._progress = self._build_progress_row()
+        self._items_layout.addWidget(self._progress)
         self._items_layout.addStretch(1)
         self._content.resized.connect(self._update_bubble_limits)
 
@@ -615,7 +652,6 @@ class ChatPanel(QWidget):
         self._chips.setObjectName('chatChips')
         self._chips_layout = _FlowLayout(self._chips, spacing=gap)
         self._chips.setVisible(False)
-        self._progress = self._build_progress_row()
 
         self.input = _InputEdit()
         self.input.setObjectName('chatInput')
@@ -647,7 +683,6 @@ class ChatPanel(QWidget):
         body.setContentsMargins(pad, 0, pad, pad)
         body.setSpacing(gap)
         body.addWidget(self._scroll, 1)
-        body.addWidget(self._progress)
         body.addWidget(self._chips)
         body.addWidget(self._composer)
         body.addWidget(self._status)
@@ -677,18 +712,24 @@ class ChatPanel(QWidget):
     def _build_progress_row(self):
         row = _plain(QWidget())
         row.setObjectName('chatProgress')
-        layout = QHBoxLayout(row)
-        layout.setContentsMargins(scaled_px(self, 2), 0, 0, 0)
-        layout.setSpacing(scaled_px(self, 6))
-        self._progress_icon = AssistantIcon(size=20)
+        layout = QVBoxLayout(row)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(scaled_px(self, 8))
+        self._progress_icon = AssistantIcon(size=36)
         self._progress_label = _HintLabel()
         self._progress_label.setObjectName('chatProgressText')
         self._progress_label.setWordWrap(True)
+        self._progress_label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         self._progress_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        layout.addWidget(self._progress_icon, 0, Qt.AlignmentFlag.AlignVCenter)
-        layout.addWidget(self._progress_label, 1, Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(self._progress_icon, 0, Qt.AlignmentFlag.AlignHCenter)
+        layout.addWidget(self._progress_label)
         row.setVisible(False)
         return row
+
+    def _place_progress(self):
+        # Alone, what the host prepares sits in the middle of the conversation; after messages, where the next
+        # answer will go.
+        self._items_layout.setStretch(0, 1 if self._preparing and not self._items else 0)
 
     def _restyle(self):
         """Work the colours out again from the host's, and hand them to every part."""
@@ -823,12 +864,12 @@ class ChatPanel(QWidget):
         self._last_kind = kind
         self._items_layout.insertWidget(self._items_layout.indexOf(self._busy_row), row)
         self._items.append(row)
+        self._place_progress()
         self._fade_in(row)
         self._update_chips()
 
     def _fade_in(self, widget: QWidget):
-        """Fade a new part in. Besides marking it as new, that paints it a few times over: a remote desktop
-        that loses an update now and then (NoMachine mirroring a desktop) still gets the last ones."""
+        """Fade a new part in; the repeated paints also reach a remote desktop that drops an update now and then."""
         # Hidden, it shows whole when the panel opens. Inside a part still fading in, the effects would nest.
         if not self.isVisible():
             return
@@ -1010,6 +1051,7 @@ class ChatPanel(QWidget):
         self._last_kind = None
         self._last_message = ''
         self._stick_to_bottom = True
+        self._place_progress()
         self._update_chips()
 
     def message_count(self) -> int:
@@ -1042,12 +1084,15 @@ class ChatPanel(QWidget):
         self._update_chips()
 
     def set_progress(self, text: str):
-        """What the host does before it can answer (e.g. starting up), said above the input box, where the
-        suggestions come once it is done. Empty hides it."""
+        """What the host does before it can answer (e.g. starting up); '' hides it.
+
+        Centred while the conversation is empty, else where the next answer will go.
+        """
         self._preparing = bool(text)
         self._progress_label.setText(text)
         self._progress_icon.set_active(self._preparing)
         self._progress.setVisible(self._preparing)
+        self._place_progress()
         self._update_chips()
 
     def set_status(self, text: str):

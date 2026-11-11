@@ -127,22 +127,31 @@ class TestBusy:
         QTest.keyClick(panel.input, Qt.Key.Key_Escape)
         assert len(rec.calls) == 2
 
-    def test_progress_shows_where_the_suggestions_go_and_offers_no_stop(self, panel, qapp):
+    def test_progress_shows_in_the_middle_of_an_empty_conversation_and_offers_no_stop(self, panel, qapp):
         rec = Recorder(panel.stopRequested)
         panel.set_suggestions(['Hello'])
         panel.set_progress('Loading the model…')
         qapp.processEvents()
         assert panel._progress.isVisible() and panel._progress_label.text() == 'Loading the model…'
         assert panel._progress_icon.is_animating()
-        assert not panel._busy_row.isVisible(), 'not in the conversation'
-        assert panel._progress.geometry().bottom() < panel._composer.geometry().top(), 'just above the input box'
+        assert not panel._busy_row.isVisible()
+        viewport = panel._scroll.viewport()
+        middle = panel._progress.mapTo(viewport, panel._progress.rect().center()).y()
+        assert abs(middle - viewport.height() / 2) <= viewport.height() * 0.05
         assert not panel._chips.isVisible()
         assert panel.stop_button.isHidden() and not panel.send_button.isHidden()
         QTest.keyClick(panel.input, Qt.Key.Key_Escape)
         assert rec.calls == []
         panel.set_progress('')
         assert not panel._progress.isVisible() and not panel._progress_icon.is_animating()
-        assert panel._chips.isVisible(), 'the suggestions take its place'
+        assert panel._chips.isVisible(), 'then the suggestions'
+
+    def test_progress_after_messages_goes_where_the_next_answer_will(self, panel, qapp):
+        panel.add_assistant_message('The assistant stopped. Send a message and it starts again.')
+        panel.set_progress('Waking up the assistant…')
+        qapp.processEvents()
+        assert panel._progress.geometry().top() > panel._items[-1].geometry().bottom()
+        assert panel._items[0].geometry().top() < panel._scroll.viewport().height() / 4, 'messages stay on top'
 
     def test_escape_when_idle_does_nothing(self, panel):
         rec = Recorder(panel.stopRequested)
@@ -305,6 +314,31 @@ class TestSuggestions:
         assert panel._chips.width() <= panel.width()
         assert panel._chips.height() > panel._chips.findChildren(QPushButton)[0].height()
 
+    def test_a_chip_wider_than_the_panel_wraps_its_text_instead_of_cutting_it(self, panel, qapp):
+        from iplotWidgets.chatPanel.chatPanel import _wrapped_height
+        panel.resize(300, 560)
+        long = 'The same for CRYO-CH-MM-CRST:MLT1000-AA-IN and CRYO-CH-CB3-HESC:VOL3600-XI'
+        panel.set_suggestions([long, 'Log scale on the top plot'])
+        qapp.processEvents()
+        chip, short = panel._chips.findChildren(QPushButton)
+        assert chip.width() <= panel._chips.width()
+        assert chip.height() > short.height(), 'grown down to more lines'
+        across, down = chip._padding()
+        assert _wrapped_height(long, chip.font(), chip.width() - 2 * across) <= chip.height() - 2 * down
+        assert chip.geometry().bottom() < short.geometry().top()
+
+    def test_a_chip_holds_its_text_on_one_line_with_room_to_spare(self, panel, qapp):
+        from iplotWidgets.chatPanel.chatPanel import _wrapped_height
+        panel.resize(900, 560)
+        panel.set_suggestions(['Log scale on the top plot', 'Smooth MLT1000-AA-IN over 10 s'])
+        qapp.processEvents()
+        for chip in panel._chips.findChildren(QPushButton):
+            across, down = chip._padding()
+            one_line = chip.sizeHint().height() - 2 * down
+            # At its own width, and a pixel narrower (a fractional screen scale rounds the other way).
+            for width in (chip.width(), chip.width() - 1):
+                assert _wrapped_height(chip.text(), chip.font(), width - 2 * across) <= one_line, chip.text()
+
 
 class TestMessage:
 
@@ -408,7 +442,7 @@ def host_style(qapp):
 class TestHostStyle:
 
     def test_messages_fit_under_a_host_style_sheet_with_padding(self, panel, qapp, host_style):
-        # MINT's themes give every text edit a frame and padding, which used to cut the last line.
+        # A host style sheet that frames and pads every text edit must not cut the last line.
         host_style('QTextEdit, QPlainTextEdit { border: 1px solid #888; padding: 4px 6px; }')
         panel.add_assistant_message('I can smooth or filter signals, combine them, change the plots, add variables '
                                     'and set the time range. What do you need?')

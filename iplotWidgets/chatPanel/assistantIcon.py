@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QSizePolicy, QWidget
 
 from iplotWidgets.sizing import scaled_px
 
-# The sparkles most tools now use to mark AI features: a large four-point star and a small one.
+# The usual AI-feature mark: a large four-point star and a small one, in a 24x24 viewBox.
 LARGE_STAR = 'M10 4.5Q11.3 11.7 18.5 13Q11.3 14.3 10 21.5Q8.7 14.3 1.5 13Q8.7 11.7 10 4.5z'
 SMALL_STAR = 'M18.5 2Q19 5 22 5.5Q19 6 18.5 9Q18 6 15 5.5Q18 5 18.5 2z'
 
@@ -19,8 +19,8 @@ _SMALL_SVG = SVG_HEAD + '<path d="' + SMALL_STAR + '" fill="{color}"/></svg>'
 #: Star opacity range and period of the twinkle while the assistant works.
 MIN_OPACITY = 0.35
 PERIOD_MS = 1200
-#: Repaints per period: smooth to the eye, and cheap on a remote display (about 20 a second).
-STEPS = 24
+#: Repaints per period, 10 a second: next to an OpenGL view each one composes the whole window again.
+STEPS = 12
 
 
 @lru_cache(maxsize=64)
@@ -68,7 +68,7 @@ def assistant_icon(color, size: int = 24) -> QIcon:
 
 
 class AssistantIcon(QWidget):
-    """The assistant mark on a disc, in the highlight colour. While active its stars twinkle in turn."""
+    """The assistant mark in the highlight colour on an alternate-base disc; while active its stars twinkle in turn."""
 
     def __init__(self, parent=None, size: int = 24):
         super().__init__(parent)
