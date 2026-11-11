@@ -19,8 +19,8 @@ _SMALL_SVG = SVG_HEAD + '<path d="' + SMALL_STAR + '" fill="{color}"/></svg>'
 #: Star opacity range and period of the twinkle while the assistant works.
 MIN_OPACITY = 0.35
 PERIOD_MS = 1200
-#: Repaints per period, 10 a second: next to an OpenGL view each one composes the whole window again.
-STEPS = 12
+#: Frames per period, about 3 a second: next to an OpenGL view each one composes the whole window again.
+STEPS = 4
 
 
 @lru_cache(maxsize=64)
