@@ -30,6 +30,10 @@ class TableModel(QAbstractTableModel):
             value = self.dataframe.iloc[index.row(), index.column()]
             return str(value)
 
+    def flags(self, index: Union[QModelIndex, QPersistentModelIndex]) -> Qt.ItemFlag:
+        # An application can take the variables of the rows dragged, as MINT does on its canvas.
+        return super().flags(index) | Qt.ItemFlag.ItemIsDragEnabled if index.isValid() else super().flags(index)
+
     def rowCount(self, parent: Union[QModelIndex, QPersistentModelIndex] = ...) -> int:
         return self.dataframe.shape[0]
 
@@ -68,9 +72,16 @@ class VariableTable(FontScaledView, QTableView):
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.horizontalHeader().setStretchLastSection(True)
         self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.setDragEnabled(True)
+        self.setDragDropMode(QAbstractItemView.DragDropMode.DragOnly)
         self.model = TableModel()
         self.setModel(self.model)
         self.apply_font_metrics()
+
+    def mousePressEvent(self, event):
+        # A drag starts only from selected rows, so a press elsewhere still selects by dragging.
+        self.setDragEnabled(self.selectionModel().isSelected(self.indexAt(event.position().toPoint())))
+        super().mousePressEvent(event)
 
     def remove_from_table(self):
         index = self.selectedIndexes()
