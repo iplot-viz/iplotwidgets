@@ -1,11 +1,12 @@
 import pandas as pd
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QPalette
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelIndex
 from PySide6.QtWidgets import QTableView, QAbstractItemView, QHeaderView, QStyledItemDelegate
 from PySide6.QtCore import Qt, Signal
 
 from typing import *
 
+from iplotWidgets.palette import blend
 from iplotWidgets.sizing import FontScaledView
 
 
@@ -45,7 +46,9 @@ class CustomItemDelegate(QStyledItemDelegate):
 
         # Change background color for the first n rows of the table
         if index.row() < option.widget.model.total_default_modules:
-            option.backgroundBrush = QColor(200, 200, 200)  # Gray background
+            # Gray, a fifth of the way to the text: (200, 200, 200) in a light palette.
+            option.backgroundBrush = blend(option.palette.color(QPalette.ColorRole.Base),
+                                           option.palette.color(QPalette.ColorRole.Text), 55 / 255)
 
 
 class ModuleTableModel(QAbstractTableModel):
