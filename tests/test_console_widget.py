@@ -1,6 +1,8 @@
 # Description: Unit tests for ConsoleWidget log routing and severity filtering.
 
 import logging
+import threading
+import time
 import unittest
 
 import pytest
@@ -94,7 +96,32 @@ class ClearConsoleTest:
         assert console.content.toPlainText() == ""
 
 
+class OtherThreadTest:
+    """A record logged in another thread is shown from the thread that runs the GUI, the only one that can use
+    the widget, once it gets to it."""
+
+    def test_a_record_logged_in_another_thread_is_shown_from_the_gui_thread(self, console, qapp):
+        console.severity_level.setCurrentText('DEBUG')
+        console.setup_logging()
+        shown_in = []
+        append = console.content.appendHtml
+        console.content.appendHtml = lambda html: (shown_in.append(threading.current_thread()), append(html))
+        worker = threading.Thread(target=lambda: logging.getLogger("test").warning("from a worker"))
+
+        worker.start()
+        worker.join()
+        before = console.content.toPlainText()
+        deadline = time.monotonic() + 5
+        while "from a worker" not in console.content.toPlainText() and time.monotonic() < deadline:
+            qapp.processEvents()
+
+        assert "from a worker" not in before
+        assert "from a worker" in console.content.toPlainText()
+        assert shown_in == [threading.main_thread()]
+
+
 # Expose pytest-style classes so collection picks them up.
 TestSeverityFilter = SeverityFilterTest
 TestHtmlFormatting = HtmlFormattingTest
 TestClearConsole = ClearConsoleTest
+TestOtherThread = OtherThreadTest
