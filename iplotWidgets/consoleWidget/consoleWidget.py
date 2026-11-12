@@ -2,17 +2,20 @@ import logging
 
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QWidget, QStyle, QPushButton, QComboBox, QPlainTextEdit, QVBoxLayout, QHBoxLayout, QLabel
-from PySide6.QtCore import Qt, QCoreApplication
+from PySide6.QtCore import Qt, QCoreApplication, Signal
 
 from iplotWidgets.sizing import clamp_to_screen
 
 
 class ConsoleWidget(QWidget):
+    # A record logged in any thread: the console shows it from its own thread (see log_emit).
+    _logged = Signal(int, str, str)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.log_handler = logging.Handler()
         self.log_handler.emit = self.log_emit
+        self._logged.connect(self._show_record)
         clamp_to_screen(self, 1000, 550)
         self.setAcceptDrops(True)
         self.setGeometry(QStyle.alignedRect(Qt.LayoutDirection.LeftToRight,
@@ -60,6 +63,14 @@ class ConsoleWidget(QWidget):
         console_logger.addHandler(self.log_handler)
 
     def log_emit(self, record):
+        # Called in the thread that logs, and widgets can only be used from the thread that runs the GUI: a record
+        # logged in another one is shown once that thread gets to it.
+        try:
+            self._logged.emit(record.levelno, record.levelname, self.log_handler.format(record))
+        except RuntimeError:
+            pass  # The console is gone, as when the application exits.
+
+    def _show_record(self, levelno: int, levelname: str, msg: str):
         # For each severity level we define a color
         level_colors = {
             'DEBUG': '#A0A0A0',     # Gray for less important logs
@@ -68,13 +79,12 @@ class ConsoleWidget(QWidget):
             'ERROR': '#FF0000',     # Red for errors
             'CRITICAL': '#8B0000'   # Dark red for critical issues
         }
-        msg = self.log_handler.format(record)
         current_level = self.severity_level.currentText()
 
-        if record.levelno >= logging.getLevelName(current_level):
-            level_color = level_colors.get(record.levelname, '#FFFFFF')
-            level_html = f'<span style="color:{level_color}">{record.levelname}</span>'
-            formatted_msg = msg.replace(record.levelname, level_html)
+        if levelno >= logging.getLevelName(current_level):
+            level_color = level_colors.get(levelname, '#FFFFFF')
+            level_html = f'<span style="color:{level_color}">{levelname}</span>'
+            formatted_msg = msg.replace(levelname, level_html)
             html_msg = f"<span>{formatted_msg}</span>"
             self.content.appendHtml(html_msg)
 
