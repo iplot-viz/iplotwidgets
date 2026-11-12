@@ -1,9 +1,11 @@
 import math
+import os
+import re
 
 from PySide6.QtCore import (QAbstractAnimation, QEasingCurve, QEvent, QPoint, QPointF, QPropertyAnimation, QRect,
                             QRectF, QSize, Qt, Signal)
 from PySide6.QtGui import QColor, QFontDatabase, QFontMetricsF, QPainter, QPalette, QTextLayout, QTextOption
-from PySide6.QtWidgets import (QCheckBox, QFrame, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QLayout,
+from PySide6.QtWidgets import (QCheckBox, QFileDialog, QFrame, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QLayout,
                                QPlainTextEdit, QPushButton, QScrollArea, QSizePolicy, QTextEdit, QToolButton,
                                QVBoxLayout, QWidget)
 
@@ -28,6 +30,8 @@ POP_IN_SVG = SVG_HEAD + _STROKES + _FRAME + '<path d="M12 7v5h5"/><path d="M12 1
 CLOSE_SVG = SVG_HEAD + _STROKES + '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></g></svg>'
 SEND_SVG = SVG_HEAD + _STROKES + '<path d="M12 18.5v-13M6.5 11 12 5.5l5.5 5.5"/></g></svg>'
 STOP_SVG = SVG_HEAD + '<rect x="7" y="7" width="10" height="10" rx="2" fill="{color}"/></svg>'
+ATTACH_SVG = SVG_HEAD + _STROKES + ('<path d="M15.5 6.5 8.3 13.7a2 2 0 0 0 2.8 2.8l7.4-7.4a4 4 0 0 0-5.7-5.7'
+                                     'L5.4 10.8a6 6 0 0 0 8.5 8.5l6.3-6.3"/></g></svg>')
 
 # A host style sheet gives text edits a frame, padding and a background, and every plain widget a
 # background: inside the panel those would draw boxes in boxes and cut the last line of a message.
@@ -320,6 +324,14 @@ class _InputEdit(QPlainTextEdit):
         super().focusInEvent(event)
         self.focusChanged.emit(True)
 
+    def dragEnterEvent(self, event):
+        # A file is for the panel to attach (see ChatPanel.set_attachable), not text: ignored here, the drag
+        # goes on to the panel, and this box gets no move or drop of it.
+        if event.mimeData().hasUrls():
+            event.ignore()
+        else:
+            super().dragEnterEvent(event)
+
     def focusOutEvent(self, event):
         super().focusOutEvent(event)
         self.focusChanged.emit(False)
@@ -574,6 +586,10 @@ class ChatPanel(QWidget):
     closeRequested = Signal()
     # True for a window of its own, False to go back. The host moves it, then calls set_detached.
     detachRequested = Signal(bool)
+    # A file the user attached (see set_attachable); what it means is up to the host.
+    fileAttached = Signal(str)
+    # The user left out the file shown above the input box (see set_attachment).
+    attachmentRemoved = Signal()
 
     def __init__(self, parent=None, title: str = 'Assistant'):
         super().__init__(parent)
@@ -591,6 +607,9 @@ class ChatPanel(QWidget):
         self._suggest_anytime = False
         self._detached = False
         self._restyling = False
+        self._attach_filter = ''
+        self._attach_suffixes = ()
+        self._attach_dir = ''
         self._scheme = Scheme(self.palette())
         self._scheme_key = None
 
@@ -663,6 +682,25 @@ class ChatPanel(QWidget):
         self.stop_button = _IconButton(STOP_SVG, self.tr('Stop (Esc)'), 'chatStop')
         self.stop_button.clicked.connect(lambda *_: self.stopRequested.emit())
         self.stop_button.setVisible(False)
+        self.attach_button = _HeaderButton(ATTACH_SVG, self.tr('Attach a file'))
+        self.attach_button.clicked.connect(lambda *_: self._choose_file())
+        self.attach_button.setVisible(False)
+
+        self._attachment = _plain(QWidget())
+        self._attachment.setObjectName('chatAttachment')
+        clip = _HeaderButton(ATTACH_SVG, '')
+        clip.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        clip.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._attachment_label = _HintLabel()
+        self.remove_attachment_button = _HeaderButton(CLOSE_SVG, self.tr('Leave the file out'))
+        self.remove_attachment_button.clicked.connect(lambda *_: self.attachmentRemoved.emit())
+        attachment = QHBoxLayout(self._attachment)
+        attachment.setContentsMargins(0, 0, 0, 0)
+        attachment.setSpacing(scaled_px(self, 2))
+        attachment.addWidget(clip)
+        attachment.addWidget(self._attachment_label, 1)
+        attachment.addWidget(self.remove_attachment_button)
+        self._attachment.setVisible(False)
 
         self._composer = _Surface(self._scheme, 'field', 'line', radius=10)
         self._composer.setObjectName('chatComposer')
@@ -670,6 +708,7 @@ class ChatPanel(QWidget):
         composer = QHBoxLayout(self._composer)
         composer.setContentsMargins(pad, scaled_px(self, 5), scaled_px(self, 5), scaled_px(self, 5))
         composer.setSpacing(gap)
+        composer.addWidget(self.attach_button, 0, Qt.AlignmentFlag.AlignBottom)
         composer.addWidget(self.input, 1, Qt.AlignmentFlag.AlignVCenter)
         composer.addWidget(self.send_button, 0, Qt.AlignmentFlag.AlignBottom)
         composer.addWidget(self.stop_button, 0, Qt.AlignmentFlag.AlignBottom)
@@ -684,6 +723,7 @@ class ChatPanel(QWidget):
         body.setSpacing(gap)
         body.addWidget(self._scroll, 1)
         body.addWidget(self._chips)
+        body.addWidget(self._attachment)
         body.addWidget(self._composer)
         body.addWidget(self._status)
         layout = QVBoxLayout(self)
@@ -1106,7 +1146,53 @@ class ChatPanel(QWidget):
         self._input_enabled = bool(enabled)
         self.input.setEnabled(self._input_enabled)
         self.send_button.setEnabled(self._input_enabled)
+        self.attach_button.setEnabled(self._input_enabled)
         self._update_chips()
+
+    def set_attachable(self, name_filter: str):
+        """Attach files of a name filter ("Tables (*.csv *.xlsx)") by the clip or a drop; '' turns it off."""
+        self._attach_filter = name_filter
+        self._attach_suffixes = tuple(f'.{s.lower()}' for s in re.findall(r'\*\.(\w+)', name_filter))
+        self.attach_button.setVisible(bool(self._attach_suffixes))
+        self.setAcceptDrops(bool(self._attach_suffixes))
+
+    def set_attachment(self, text: str):
+        """The file the next messages go with, shown above the input box with a button to leave it out; '' hides it."""
+        self._attachment_label.setText(text)
+        self._attachment_label.setToolTip(text)
+        self._attachment.setVisible(bool(text))
+
+    def _choose_file(self):
+        path, _ = QFileDialog.getOpenFileName(self, self.tr('Attach a file'), self._attach_dir, self._attach_filter)
+        if path:
+            self._attach_dir = os.path.dirname(path)
+            self.fileAttached.emit(path)
+
+    def _dropped_file(self, mime) -> str:
+        if not (self._attach_suffixes and self._input_enabled and mime.hasUrls()):
+            return ''
+        for url in mime.urls():
+            path = url.toLocalFile()
+            if path.lower().endswith(self._attach_suffixes) and os.path.isfile(path):
+                return path
+        return ''
+
+    def dragEnterEvent(self, event):
+        if self._dropped_file(event.mimeData()):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        self.dragEnterEvent(event)
+
+    def dropEvent(self, event):
+        path = self._dropped_file(event.mimeData())
+        if path:
+            event.acceptProposedAction()
+            self.fileAttached.emit(path)
+        else:
+            event.ignore()
 
     def set_suggestions(self, texts, anytime=False):
         """Chips the user can click instead of typing, only while the conversation is empty unless anytime."""

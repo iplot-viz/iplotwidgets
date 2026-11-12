@@ -1,16 +1,18 @@
 # Description: Unit tests for ChatPanel and AssistantIcon.
 
+import os
 import time
+from unittest import mock
 
 import pytest
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QFontDatabase, QPalette
+from PySide6.QtCore import QMimeData, QPointF, Qt, QUrl
+from PySide6.QtGui import QColor, QDragEnterEvent, QDropEvent, QFontDatabase, QPalette
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QGraphicsOpacityEffect, QPushButton, QTextEdit, QToolButton, QWidget
+from PySide6.QtWidgets import QApplication, QGraphicsOpacityEffect, QPushButton, QTextEdit, QToolButton, QWidget
 
 from iplotWidgets.chatPanel import AssistantIcon, ChatPanel, assistant_icon
 from iplotWidgets.chatPanel import assistantIcon as icon_module
-from iplotWidgets.chatPanel.chatPanel import FADE_IN_MS
+from iplotWidgets.chatPanel.chatPanel import FADE_IN_MS, QFileDialog
 
 
 @pytest.fixture
@@ -581,6 +583,89 @@ class TestWindow:
         assert asked.calls == [(True,), (False,)]
         panel.set_detached(False)
         assert 'separate window' in panel.pop_button.toolTip()
+
+
+TABLES = 'Tables and documents (*.csv *.xlsx *.pdf)'
+
+
+def _drop_events(paths):
+    # The events only point at the mime data: the caller keeps it alive while they are sent.
+    mime = QMimeData()
+    mime.setUrls([QUrl.fromLocalFile(str(p)) for p in paths])
+    point = QPointF(10, 10)
+    enter = QDragEnterEvent(point.toPoint(), Qt.DropAction.CopyAction, mime, Qt.MouseButton.LeftButton,
+                            Qt.KeyboardModifier.NoModifier)
+    drop = QDropEvent(point, Qt.DropAction.CopyAction, mime, Qt.MouseButton.LeftButton,
+                      Qt.KeyboardModifier.NoModifier)
+    return mime, enter, drop
+
+
+class TestAttachments:
+
+    def test_off_until_the_host_asks(self, panel):
+        assert not panel.attach_button.isVisible() and not panel.acceptDrops()
+        panel.set_attachable(TABLES)
+        assert panel.attach_button.isVisible() and panel.acceptDrops()
+        panel.set_attachable('')
+        assert not panel.attach_button.isVisible() and not panel.acceptDrops()
+
+    def test_the_clip_attaches_the_chosen_file(self, panel, tmp_path):
+        panel.set_attachable(TABLES)
+        rec = Recorder(panel.fileAttached)
+        chosen = str(tmp_path / 'report.pdf')
+        with mock.patch.object(QFileDialog, 'getOpenFileName', return_value=(chosen, TABLES)) as dialog:
+            panel.attach_button.click()
+        assert dialog.call_args.args[3] == TABLES, 'only the kinds the host reads'
+        assert rec.calls == [(chosen,)]
+        with mock.patch.object(QFileDialog, 'getOpenFileName', return_value=('', '')):
+            panel.attach_button.click()
+        assert rec.calls == [(chosen,)], 'cancelled: nothing'
+
+    def test_a_dropped_file_of_a_kind_the_host_reads_is_attached(self, panel, tmp_path):
+        panel.set_attachable(TABLES)
+        rec = Recorder(panel.fileAttached)
+        table, image = tmp_path / 'signals.XLSX', tmp_path / 'photo.png'
+        table.write_bytes(b'x')
+        image.write_bytes(b'x')
+        mime, enter, drop = _drop_events([image])
+        QApplication.sendEvent(panel, enter)
+        assert not enter.isAccepted()
+        mime, enter, drop = _drop_events([image, table])
+        QApplication.sendEvent(panel, enter)
+        assert enter.isAccepted()
+        QApplication.sendEvent(panel, drop)
+        assert [os.path.normpath(path) for path, in rec.calls] == [os.path.normpath(str(table))]
+
+    def test_a_file_dropped_on_the_input_box_is_attached_not_typed(self, panel, tmp_path):
+        panel.set_attachable(TABLES)
+        rec = Recorder(panel.fileAttached)
+        table = tmp_path / 'list.csv'
+        table.write_bytes(b'x')
+        mime, enter, drop = _drop_events([table])
+        QApplication.sendEvent(panel.input.viewport(), enter)  # where Qt delivers it
+        QApplication.sendEvent(panel.input.viewport(), drop)
+        assert len(rec.calls) == 1 and panel.input.toPlainText() == ''
+
+    def test_nothing_is_attached_while_the_input_is_closed(self, panel, tmp_path):
+        panel.set_attachable(TABLES)
+        panel.set_input_enabled(False)
+        assert not panel.attach_button.isEnabled()
+        table = tmp_path / 'list.csv'
+        table.write_bytes(b'x')
+        mime, enter, drop = _drop_events([table])
+        QApplication.sendEvent(panel, enter)
+        assert not enter.isAccepted()
+
+    def test_the_attached_file_shows_above_the_input_and_can_be_left_out(self, panel):
+        rec = Recorder(panel.attachmentRemoved)
+        panel.set_attachment('report.pdf')
+        assert panel._attachment.isVisible() and panel._attachment_label.text() == 'report.pdf'
+        assert panel._attachment.geometry().bottom() <= panel._composer.geometry().top()
+        panel.remove_attachment_button.click()
+        assert rec.calls == [()]
+        assert panel._attachment.isVisible(), 'the host decides'
+        panel.set_attachment('')
+        assert not panel._attachment.isVisible()
 
 
 class TestAssistantIcon:
