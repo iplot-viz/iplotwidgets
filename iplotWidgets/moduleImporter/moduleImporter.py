@@ -1,5 +1,5 @@
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QHBoxLayout, QVBoxLayout, QMessageBox
+from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QHBoxLayout, QVBoxLayout, QMessageBox, QLabel
 from PySide6.QtCore import Qt, Signal
 from iplotWidgets.moduleImporter.moduleTable import ModuleTable
 from iplotWidgets.sizing import clamp_to_screen
@@ -46,6 +46,14 @@ class ModuleImporter(QWidget):
         self.search_btn = QPushButton('Add')
         self.search_btn.clicked.connect(self.check_module)
 
+        # A module of the user imported again, as its files are now, without restarting. Processing releases that
+        # can't do it leave the button out.
+        self.reload_module = QPushButton('Reload selected module')
+        self.reload_module.clicked.connect(self.reload_selected_module)
+        self.reload_module.setVisible(callable(getattr(self.parser, 'reload_module', None)))
+        self.status = QLabel()
+        self.status.setWordWrap(True)
+
         top_h_layout = QHBoxLayout()
         top_h_layout.addWidget(self.searchbar)
         top_h_layout.addWidget(self.search_btn)
@@ -53,6 +61,7 @@ class ModuleImporter(QWidget):
         top_v_layout.addLayout(top_h_layout)
 
         bot_h_layout = QHBoxLayout()
+        bot_h_layout.addWidget(self.reload_module)
         bot_h_layout.addWidget(self.clear_module)
         bot_h_layout.addWidget(self.clear_all_module)
 
@@ -62,10 +71,13 @@ class ModuleImporter(QWidget):
         main_v_layout.addLayout(top_v_layout)
         main_v_layout.addLayout(mid_h_layout)
         main_v_layout.addLayout(bot_h_layout)
+        main_v_layout.addWidget(self.status)
         self.setLayout(main_v_layout)
 
         # Show available modules when loading the window.
         self.starter_modules()
+        self.tableView.selectionModel().selectionChanged.connect(lambda *_: self._enable_reload())
+        self._enable_reload()
 
     def starter_modules(self):
         modules = self.get_current_modules()
@@ -77,6 +89,7 @@ class ModuleImporter(QWidget):
         return self.parser.get_modules()
 
     def check_module(self):
+        self.status.clear()
         text = self.searchbar.text()
         module_name = self.parser.pattern.match(text).groupdict()['module']
         if module_name in self.parser.get_modules_names():
@@ -100,13 +113,38 @@ class ModuleImporter(QWidget):
             if value not in data_list:
                 self.tableView.model.add_row([value])
 
+    def _user_rows_selected(self) -> List[int]:
+        """The rows selected that are modules the user added: the default ones are not reloaded nor removed."""
+        defaults = self.parser.get_total_default_modules()
+        return sorted({index.row() for index in self.tableView.selectedIndexes() if index.row() >= defaults})
+
+    def _enable_reload(self):
+        self.reload_module.setEnabled(bool(self._user_rows_selected()))
+
+    def reload_selected_module(self):
+        """Import again the modules selected, as their files are now. The signals drawn keep what they computed with
+        them until they are drawn again."""
+        modules = self.parser.get_modules()
+        reloaded = []
+        for row in self._user_rows_selected():
+            try:
+                self.parser.reload_module(modules[row])
+            except Exception as e:
+                logger.exception(e)
+                show_msg(f"Error {str(e)}: cannot reload module {modules[row]}, which stays as it was")
+                continue
+            reloaded.append(modules[row])
+        self.status.setText("Reloaded. Draw again for the signals to use the new code." if reloaded else "")
+
     def clear_selected_module(self):
+        self.status.clear()
         index = self.tableView.selectedIndexes()
         rows = [ix.row() for ix in index]
         valid_rows = self.parser.clear_modules(rows)
         self.tableView.remove_selected_module(valid_rows)
 
     def reset_modules(self):
+        self.status.clear()
         self.parser.reset_modules()
         self.tableView.clear_table(self.parser.get_total_default_modules())
 
