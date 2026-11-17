@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from PySide6.QtCore import Qt
 
 from iplotDataAccess.dataSource import DS_CODAC_TYPE, DS_CSV_TYPE
-from iplotWidgets.compat import DS_IMAS_TYPE
+from iplotWidgets.compat import DS_IMAS_TYPE, DS_PYUDA_TYPE
 from iplotWidgets.variableBrowser.models.mtJsonModel import (ImasVarItem,
                                                              UdaVarItem,
                                                              VariableModel)
@@ -54,6 +54,29 @@ class CsvLoadTest(unittest.TestCase):
         self.assertEqual(self.model.rowCount(), 2)
         self.model.clear()
         self.assertEqual(self.model.rowCount(), 0)
+
+
+class PyudaLoadTest(unittest.TestCase):
+    """pyuda sources give one folder per source alias, loaded at once like CSV."""
+
+    def setUp(self):
+        self.ds = _make_data_source(DS_PYUDA_TYPE)
+        self.model = VariableModel(data_source=self.ds)
+
+    def test_load_alias_folders(self):
+        document = {'AMC': {'AMC_PLASMA CURRENT': ''}, 'GENERIC': {'IP': '', 'BT': ''}}
+        self.model.load_document(document)
+        self.assertEqual(self.model.rowCount(), 2)
+        generic_idx = self.model.index(1, 0)
+        self.assertEqual(self.model.rowCount(generic_idx), 2)
+        leaf = self.model.index(0, 0, generic_idx).internalPointer()
+        self.assertEqual(leaf.get_table_variable_str(), 'BT')
+
+    def test_expand_does_not_query_the_source(self):
+        self.model.load_document({'AMC': {'AMC_PLASMA CURRENT': ''}})
+        folder = self.model.index(0, 0).internalPointer()
+        self.model.expand(folder)
+        self.assertEqual(self.model.rowCount(self.model.index(0, 0)), 1)
 
 
 class CodacLoadAndExpandTest(unittest.TestCase):
