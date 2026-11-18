@@ -23,6 +23,8 @@ def fake_parser(monkeypatch):
         'config_writes': [],
         'load_calls': [],
         'has_access': True,
+        'reloaded': [],
+        'broken': set(),
     }
 
     class _StubParser:
@@ -56,6 +58,11 @@ def fake_parser(monkeypatch):
             keep = [m for i, m in enumerate(state['modules']) if i not in rows]
             state['modules'] = keep
             return rows
+
+        def reload_module(self, module):
+            if module in state['broken']:
+                raise SyntaxError("invalid syntax")
+            state['reloaded'].append(module)
 
     import iplotWidgets.moduleImporter.moduleImporter as mi_module
     monkeypatch.setattr(mi_module, 'Parser', _StubParser)
@@ -155,8 +162,50 @@ class DescribeTest:
         assert 'dumps(' in page
 
 
+class ReloadTest:
+    def _select(self, importer, row):
+        importer.tableView.selectRow(row)
+
+    def test_reload_waits_for_a_module_of_the_user_to_be_selected(self, importer, fake_parser):
+        assert not importer.reload_module.isEnabled()
+        self._select(importer, 0)
+        assert not importer.reload_module.isEnabled()  # a default module
+        importer.searchbar.setText("user_mod")
+        importer.check_module()
+        self._select(importer, 2)
+        assert importer.reload_module.isEnabled()
+
+    def test_reload_imports_again_the_modules_of_the_user_selected(self, importer, fake_parser):
+        importer.searchbar.setText("user_mod")
+        importer.check_module()
+        self._select(importer, 2)
+        importer.reload_module.click()
+        assert fake_parser['reloaded'] == ['user_mod']
+        assert importer.status.text() == "Reloaded. Draw again for the signals to use the new code."
+
+    def test_a_reload_that_fails_says_why(self, importer, fake_parser, monkeypatch):
+        import iplotWidgets.moduleImporter.moduleImporter as mi_module
+        said = []
+        monkeypatch.setattr(mi_module, 'show_msg', said.append)
+        importer.searchbar.setText("user_mod")
+        importer.check_module()
+        fake_parser['broken'].add("user_mod")
+        self._select(importer, 2)
+        importer.reload_module.click()
+        assert said == ["Error invalid syntax: cannot reload module user_mod, which stays as it was"]
+        assert importer.status.text() == ""
+
+    def test_a_processing_that_cannot_reload_leaves_the_button_out(self, qapp, fake_parser, monkeypatch):
+        import iplotWidgets.moduleImporter.moduleImporter as mi_module
+        monkeypatch.delattr(mi_module.Parser, 'reload_module')
+        widget = ModuleImporter()
+        assert widget.reload_module.isHidden()
+        widget.deleteLater()
+
+
 # Expose pytest classes for collection.
 TestDescribe = DescribeTest
+TestReload = ReloadTest
 TestStarterModules = StarterModulesTest
 TestCheckModule = CheckModuleTest
 TestResetModules = ResetModulesTest
