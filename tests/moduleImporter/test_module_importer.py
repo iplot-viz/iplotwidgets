@@ -183,6 +183,18 @@ class ReloadTest:
         assert fake_parser['reloaded'] == ['user_mod']
         assert importer.status.text() == "Reloaded. Draw again for the signals to use the new code."
 
+    def test_a_module_reloaded_is_described_as_it_is_now(self, importer, fake_parser):
+        import json
+        import textwrap
+        importer.searchbar.setText("user_mod")
+        importer.check_module()
+        importer.parser.supported_members = {'user_mod': json}
+        self._select(importer, 2)
+        assert 'dumps(' in importer.description.toPlainText()
+        importer.parser.supported_members = {'user_mod': textwrap}  # what its files hold now
+        importer.reload_module.click()
+        assert 'dedent(' in importer.description.toPlainText()
+
     def test_a_reload_that_fails_says_why(self, importer, fake_parser, monkeypatch):
         import iplotWidgets.moduleImporter.moduleImporter as mi_module
         said = []
