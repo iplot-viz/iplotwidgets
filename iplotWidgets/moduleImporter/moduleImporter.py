@@ -159,6 +159,8 @@ class ModuleImporter(QWidget):
                 continue
             reloaded.append(modules[row])
         self.status.setText("Reloaded. Draw again for the signals to use the new code." if reloaded else "")
+        # What a module offers can change with its files.
+        self.describe(self.tableView.currentIndex())
 
     def clear_selected_module(self):
         self.status.clear()
