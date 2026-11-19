@@ -27,6 +27,8 @@ _STROKES = '<g fill="none" stroke="{color}" stroke-width="1.8" stroke-linecap="r
 _FRAME = '<path d="M10 5H6.5A1.5 1.5 0 0 0 5 6.5v11A1.5 1.5 0 0 0 6.5 19h11a1.5 1.5 0 0 0 1.5-1.5V14"/>'
 POP_OUT_SVG = SVG_HEAD + _STROKES + _FRAME + '<path d="M14 5h5v5"/><path d="M19 5l-7 7"/></g></svg>'
 POP_IN_SVG = SVG_HEAD + _STROKES + _FRAME + '<path d="M12 7v5h5"/><path d="M12 12l7-7"/></g></svg>'
+# A pencil on the frame: a conversation to write anew.
+NEW_SVG = SVG_HEAD + _STROKES + _FRAME + '<path d="M17 4.5l2.5 2.5-7.5 7.5-3.2.7.7-3.2z"/></g></svg>'
 CLOSE_SVG = SVG_HEAD + _STROKES + '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></g></svg>'
 SEND_SVG = SVG_HEAD + _STROKES + '<path d="M12 18.5v-13M6.5 11 12 5.5l5.5 5.5"/></g></svg>'
 STOP_SVG = SVG_HEAD + '<rect x="7" y="7" width="10" height="10" rx="2" fill="{color}"/></svg>'
@@ -590,6 +592,8 @@ class ChatPanel(QWidget):
     fileAttached = Signal(str)
     # The user left out the file shown above the input box (see set_attachment).
     attachmentRemoved = Signal()
+    # The user asked for a new conversation (see set_new_conversation): the host clears the panel and starts again.
+    newConversationRequested = Signal()
 
     def __init__(self, parent=None, title: str = 'Assistant'):
         super().__init__(parent)
@@ -626,6 +630,10 @@ class ChatPanel(QWidget):
         font = self._title.font()
         font.setBold(True)
         self._title.setFont(font)
+        self.new_button = _HeaderButton(NEW_SVG, self.tr('New conversation'))
+        self.new_button.clicked.connect(lambda *_: self.newConversationRequested.emit())
+        self.new_button.setVisible(False)
+        self.new_button.setEnabled(False)
         self.pop_button = _HeaderButton(POP_OUT_SVG, self.tr('Open in a separate window'))
         self.pop_button.clicked.connect(lambda *_: self.detachRequested.emit(not self._detached))
         self.pop_button.setVisible(False)
@@ -637,6 +645,7 @@ class ChatPanel(QWidget):
         header.addWidget(self._title_icon)
         header.addSpacing(scaled_px(self, 4))
         header.addWidget(self._title, 1)
+        header.addWidget(self.new_button)
         header.addWidget(self.pop_button)
         header.addWidget(self.close_button)
 
@@ -841,6 +850,11 @@ class ChatPanel(QWidget):
         """Show the button that asks the host for a window of its own (see detachRequested)."""
         self.pop_button.setVisible(bool(detachable))
 
+    def set_new_conversation(self, offered: bool):
+        """Show the button that asks the host for a new conversation (see newConversationRequested); it waits for
+        something in this one."""
+        self.new_button.setVisible(bool(offered))
+
     def is_detached(self) -> bool:
         return self._detached
 
@@ -904,6 +918,7 @@ class ChatPanel(QWidget):
         self._last_kind = kind
         self._items_layout.insertWidget(self._items_layout.indexOf(self._busy_row), row)
         self._items.append(row)
+        self.new_button.setEnabled(True)
         self._place_progress()
         self._fade_in(row)
         self._update_chips()
@@ -1086,6 +1101,7 @@ class ChatPanel(QWidget):
             row.setParent(None)
             row.deleteLater()
         self._items.clear()
+        self.new_button.setEnabled(False)
         self._bubbles.clear()
         self._cards.clear()
         self._last_kind = None
