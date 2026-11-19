@@ -152,6 +152,16 @@ class FinishTest:
         assert importer.tableView.model.rowCount() == 2
 
 
+class DescribeTest:
+    def test_the_module_of_the_row_selected_is_described(self, importer, fake_parser):
+        import json
+        importer.parser.supported_members = {'default_a': json}
+        importer.tableView.setCurrentIndex(importer.tableView.model.index(0, 0))
+        page = importer.description.toPlainText()
+        assert page.startswith('default_a')
+        assert 'dumps(' in page
+
+
 class ReloadTest:
     def _select(self, importer, row):
         importer.tableView.selectRow(row)
@@ -194,6 +204,7 @@ class ReloadTest:
 
 
 # Expose pytest classes for collection.
+TestDescribe = DescribeTest
 TestReload = ReloadTest
 TestStarterModules = StarterModulesTest
 TestCheckModule = CheckModuleTest

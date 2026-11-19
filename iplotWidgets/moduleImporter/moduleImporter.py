@@ -1,6 +1,10 @@
+import sys
+
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import QWidget, QStyle, QLineEdit, QPushButton, QHBoxLayout, QVBoxLayout, QMessageBox, QLabel
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (QWidget, QStyle, QLineEdit, QPushButton, QHBoxLayout, QVBoxLayout, QMessageBox,
+                               QSplitter, QLabel)
+from PySide6.QtCore import QModelIndex, Qt, Signal
+from iplotWidgets.moduleImporter.moduleDescription import ModuleDescription
 from iplotWidgets.moduleImporter.moduleTable import ModuleTable
 from iplotWidgets.sizing import clamp_to_screen
 from iplotProcessing.tools.parsers import Parser
@@ -17,7 +21,7 @@ class ModuleImporter(QWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        clamp_to_screen(self, 500, 400)
+        clamp_to_screen(self, 900, 520)
         self.setAcceptDrops(True)
         self.setGeometry(
             QStyle.alignedRect(
@@ -65,19 +69,39 @@ class ModuleImporter(QWidget):
         bot_h_layout.addWidget(self.clear_module)
         bot_h_layout.addWidget(self.clear_all_module)
 
-        mid_h_layout = QHBoxLayout()
-        mid_h_layout.addWidget(self.tableView)
+        # The modules on the left; on the right, what the one selected offers.
+        self.description = ModuleDescription()
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.addWidget(self.tableView)
+        splitter.addWidget(self.description)
+        splitter.setStretchFactor(1, 2)
         main_v_layout = QVBoxLayout()
         main_v_layout.addLayout(top_v_layout)
-        main_v_layout.addLayout(mid_h_layout)
+        main_v_layout.addWidget(splitter)
         main_v_layout.addLayout(bot_h_layout)
         main_v_layout.addWidget(self.status)
         self.setLayout(main_v_layout)
 
         # Show available modules when loading the window.
         self.starter_modules()
+        self.tableView.selectionModel().currentRowChanged.connect(lambda current, *_: self.describe(current))
         self.tableView.selectionModel().selectionChanged.connect(lambda *_: self._enable_reload())
         self._enable_reload()
+
+    def describe(self, index: QModelIndex):
+        """Show what the module of a row offers, as the processing loaded it."""
+        entry = str(index.data()) if index.isValid() else ''
+        match = self.parser.pattern.match(entry) if entry else None
+        if match is None:
+            self.description.describe('', None)
+            return
+        groups = match.groupdict()
+        name = '.'.join(part for part in (groups.get('module_path'), groups.get('module')) if part)
+        # As the processing loads it: 'import x' and 'x.*' reach the submodules of x, 'from x import y' only y.
+        walk = name.endswith('.*') or not groups.get('module_path')
+        name = name[:-2] if name.endswith('.*') else name
+        module = getattr(self.parser, 'supported_members', {}).get(name) or sys.modules.get(name)
+        self.description.describe(entry, module, walk)
 
     def starter_modules(self):
         modules = self.get_current_modules()
