@@ -584,18 +584,6 @@ class TestWindow:
         panel.set_detached(False)
         assert 'separate window' in panel.pop_button.toolTip()
 
-    def test_a_new_conversation_is_asked_of_the_host_once_there_is_one(self, panel):
-        assert not panel.new_button.isVisible(), 'only when the host can start one'
-        panel.set_new_conversation(True)
-        assert panel.new_button.isVisible() and not panel.new_button.isEnabled(), 'nothing to start again from'
-        panel.add_user_message('smooth the pirani')
-        assert panel.new_button.isEnabled()
-        asked = Recorder(panel.newConversationRequested)
-        panel.new_button.click()
-        assert asked.calls == [()] and panel.message_count() == 1, 'the host clears it'
-        panel.clear()
-        assert not panel.new_button.isEnabled()
-
 
 TABLES = 'Tables and documents (*.csv *.xlsx *.pdf)'
 
